@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Airavat CRM design tokens — warm East African travel identity.
+   One dominant action colour (terracotta), calm neutrals, restrained status
+   colours. 8px spacing, 10–12px radii, thin borders, subtle shadows.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-ivory: #f7f4ee; /* app background */
+  --color-surface: #ffffff; /* cards, panels */
+  --color-surface-2: #f1ede3; /* subtle fills, hover */
+  --color-forest: #183128; /* sidebar */
+  --color-forest-2: #21402f;
+  --color-ink: #17201c; /* primary text */
+  --color-muted: #6b746e; /* secondary text */
+  --color-line: #ddd8ce; /* borders */
+  --color-terracotta: #c65a32; /* primary action */
+  --color-terracotta-dark: #a8481f;
+  --color-success: #2f7d5a;
+  --color-warning: #b7791f;
+  --color-error: #b64747;
+  --color-info: #3a6b8f;
+
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-card: 12px;
+  --shadow-card: 0 1px 2px rgb(23 32 28 / 0.04), 0 1px 3px rgb(23 32 28 / 0.06);
+  --shadow-pop: 0 8px 28px rgb(23 32 28 / 0.14);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+body {
+  background-color: var(--color-ivory);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-terracotta);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Tabular numerals for financial values */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ---------------------------------------------------------------------------
+   Components
+--------------------------------------------------------------------------- */
+@utility card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Buttons */
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  min-height: 2.25rem;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+@utility btn-primary {
+  background: var(--color-terracotta);
+  color: #fff;
+}
+@utility btn-primary-hover {
+  background: var(--color-terracotta-dark);
+}
+@utility btn-ghost {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line);
+}
+
+/* Inputs */
+@utility field {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.875rem;
+  color: var(--color-ink);
+}
+@utility field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin-bottom: 0.3rem;
+}
+
+/* Status badges */
+@utility badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.badge-neutral { background: #eceadf; color: #5a5f57; }
+.badge-info { background: #e4eef4; color: #2f5d7d; }
+.badge-success { background: #e2f0e8; color: #21684a; }
+.badge-warning { background: #f6ecd8; color: #8a5a12; }
+.badge-error { background: #f4e2e2; color: #973636; }
+
+/* Sidebar nav item */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #cdd8cf;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.nav-item:hover {
+  background: var(--color-forest-2);
+  color: #fff;
+}
+.nav-item[data-active="true"] {
+  background: var(--color-forest-2);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Table helpers */
+.row-hover:hover {
+  background: var(--color-surface-2);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Thin scrollbars in dense panels */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
