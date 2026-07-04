@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Banknote,
   BarChart3,
   CalendarCheck,
   Compass,
   KanbanSquare,
   LayoutDashboard,
+  ListTodo,
   MessageSquare,
   Plus,
   Settings,
@@ -26,7 +26,7 @@ const NAV = [
   { href: "/quotations", label: "Quotations", icon: FileText },
   { href: "/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare },
-  { href: "/tasks", label: "Tasks", icon: Banknote },
+  { href: "/tasks", label: "Tasks", icon: ListTodo },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

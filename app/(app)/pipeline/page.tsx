@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState, type DragEvent } from "react";
 import { MessageSquare } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
@@ -16,10 +17,15 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export default function PipelinePage() {
   const ws = useWorkspace();
   const { data } = ws;
+  const searchParams = useSearchParams();
   const [view, setView] = useState<"board" | "archive">("board");
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropStage, setDropStage] = useState<PipelineStage | null>(null);
 
+  const initialStage = searchParams.get("stage");
+  const [fStage, setFStage] = useState(
+    PIPELINE_STAGES.some((s) => s.id === initialStage) ? (initialStage as PipelineStage) : "",
+  );
   const [fConsultant, setFConsultant] = useState("");
   const [fService, setFService] = useState("");
   const [fMonth, setFMonth] = useState("");
@@ -40,6 +46,9 @@ export default function PipelinePage() {
 
   const byStage = (stage: PipelineStage) => openEnquiries.filter((e) => e.stage === stage);
   const archived = data.enquiries.filter((e) => e.status !== "open");
+  const visibleStages = fStage
+    ? PIPELINE_STAGES.filter((stage) => stage.id === fStage)
+    : PIPELINE_STAGES;
 
   const onDrop = (stage: PipelineStage) => {
     if (dragId) ws.moveEnquiryStage(dragId, stage);
@@ -78,6 +87,10 @@ export default function PipelinePage() {
         <>
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2">
+            <select className={selectCls} value={fStage} onChange={(e) => setFStage(e.target.value)} aria-label="Filter by pipeline stage">
+              <option value="">All stages</option>
+              {PIPELINE_STAGES.map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}
+            </select>
             <select className={selectCls} value={fConsultant} onChange={(e) => setFConsultant(e.target.value)} aria-label="Filter by consultant">
               <option value="">All consultants</option>
               {data.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -101,8 +114,8 @@ export default function PipelinePage() {
               <input type="checkbox" className="size-4 accent-[var(--color-terracotta)]" checked={fOverdue} onChange={(e) => setFOverdue(e.target.checked)} />
               Overdue only
             </label>
-            {(fConsultant || fService || fMonth || fWaiting || fOverdue) ? (
-              <button type="button" className="text-xs font-semibold text-terracotta" onClick={() => { setFConsultant(""); setFService(""); setFMonth(""); setFWaiting(""); setFOverdue(false); }}>
+            {(fStage || fConsultant || fService || fMonth || fWaiting || fOverdue) ? (
+              <button type="button" className="text-xs font-semibold text-terracotta" onClick={() => { setFStage(""); setFConsultant(""); setFService(""); setFMonth(""); setFWaiting(""); setFOverdue(false); }}>
                 Clear
               </button>
             ) : null}
@@ -111,7 +124,7 @@ export default function PipelinePage() {
           {/* Board */}
           <div className="scroll-thin -mx-3 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-0">
             <div className="flex gap-3" style={{ minWidth: "min-content" }}>
-              {PIPELINE_STAGES.map((stage) => {
+              {visibleStages.map((stage) => {
                 const cards = byStage(stage.id);
                 const value = cards.reduce((s, e) => s + e.estimatedValue, 0);
                 return (

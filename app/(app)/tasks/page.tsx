@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
@@ -14,15 +15,19 @@ export default function TasksPage() {
   const ws = useWorkspace();
   const { data, currentUser } = ws;
   const { openCreate } = useCreateModals();
-  const [scope, setScope] = useState<"mine" | "all">("mine");
+  const searchParams = useSearchParams();
+  const initialDueToday = searchParams.get("due") === "today";
+  const [scope, setScope] = useState<"mine" | "all">(initialDueToday ? "all" : "mine");
   const [show, setShow] = useState<"open" | "done">("open");
+  const [dueTodayOnly, setDueTodayOnly] = useState(initialDueToday);
 
   const tasks = useMemo(() => {
     return data.tasks
       .filter((t) => (scope === "mine" ? t.assignedToId === currentUser.id : true))
       .filter((t) => (show === "open" ? !t.done : t.done))
+      .filter((t) => (dueTodayOnly ? isToday(t.dueAt) : true))
       .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
-  }, [data.tasks, scope, show, currentUser.id]);
+  }, [data.tasks, scope, show, dueTodayOnly, currentUser.id]);
 
   const overdue = tasks.filter((t) => !t.done && isOverdue(t.dueAt));
   const today = tasks.filter((t) => !t.done && isToday(t.dueAt));
@@ -55,6 +60,13 @@ export default function TasksPage() {
             <button key={s} onClick={() => setShow(s)} className={`rounded-md px-3 py-1.5 text-sm font-semibold capitalize ${show === s ? "bg-surface shadow-sm" : "text-muted"}`}>{s === "open" ? "Open" : "Completed"}</button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => setDueTodayOnly((v) => !v)}
+          className={`rounded-lg border border-line px-3 py-1.5 text-sm font-semibold ${dueTodayOnly ? "bg-surface shadow-sm" : "text-muted"}`}
+        >
+          Due today
+        </button>
       </div>
 
       <div className="space-y-5">

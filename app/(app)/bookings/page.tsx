@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useWorkspace } from "@/lib/workspace";
 import { PageHeader } from "@/components/ui/misc";
@@ -11,8 +12,12 @@ import { money, formatDateRange } from "@/lib/format";
 export default function BookingsPage() {
   const ws = useWorkspace();
   const { data } = ws;
-  const [status, setStatus] = useState("");
-  const [outstandingOnly, setOutstandingOnly] = useState(false);
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") ?? "";
+  const [status, setStatus] = useState(
+    initialStatus in BOOKING_STATUS_LABELS ? initialStatus : "",
+  );
+  const [outstandingOnly, setOutstandingOnly] = useState(searchParams.get("filter") === "outstanding");
 
   const rows = useMemo(() => {
     return data.bookings.filter((b) => {

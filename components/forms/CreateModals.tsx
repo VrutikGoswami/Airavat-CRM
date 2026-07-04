@@ -25,10 +25,10 @@ import {
 } from "@/lib/labels";
 import { dateFromToday } from "@/lib/format";
 
-type CreateKind = "customer" | "enquiry" | "task" | null;
+type CreateKind = "customer" | "enquiry" | "task";
 
 type ModalsValue = {
-  openCreate: (kind: Exclude<CreateKind, null> | "quotation", presetCustomerId?: string) => void;
+  openCreate: (kind: CreateKind | "quotation", presetCustomerId?: string) => void;
 };
 
 const ModalsContext = createContext<ModalsValue | null>(null);
@@ -41,7 +41,7 @@ export function useCreateModals(): ModalsValue {
 
 export function CreateModalsProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [kind, setKind] = useState<CreateKind>(null);
+  const [kind, setKind] = useState<CreateKind | null>(null);
   const [presetCustomerId, setPresetCustomerId] = useState<string | undefined>();
 
   const openCreate: ModalsValue["openCreate"] = (k, customerId) => {

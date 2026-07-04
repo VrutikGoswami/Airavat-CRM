@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
@@ -14,7 +15,11 @@ export default function QuotationsPage() {
   const ws = useWorkspace();
   const { data } = ws;
   const { openCreate } = useCreateModals();
-  const [status, setStatus] = useState("");
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") ?? "";
+  const [status, setStatus] = useState(
+    initialStatus === "awaiting" || initialStatus in QUOTATION_STATUS_LABELS ? initialStatus : "",
+  );
 
   const rows = useMemo(() => {
     return data.quotations.filter((q) => {
