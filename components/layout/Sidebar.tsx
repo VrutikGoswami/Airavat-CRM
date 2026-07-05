@@ -6,7 +6,6 @@ import { useState } from "react";
 import {
   BarChart3,
   CalendarCheck,
-  Compass,
   KanbanSquare,
   LayoutDashboard,
   ListTodo,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { useCreateModals } from "@/components/forms/CreateModals";
+import { BrandHomeLink } from "@/components/layout/BrandHomeLink";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -42,9 +42,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col bg-forest text-[#cdd8cf]">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <Compass className="size-6 text-terracotta" aria-hidden />
-        <span className="text-lg font-bold tracking-tight text-white">Airavat CRM</span>
+      <div className="px-4 py-4">
+        <BrandHomeLink onNavigate={onNavigate} />
       </div>
 
       <div className="relative px-3">

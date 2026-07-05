@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Suspense, useState } from "react";
-import { Compass, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { demoUsers } from "@/lib/staff";
 import { Avatar } from "@/components/ui/Avatar";
 
@@ -36,7 +37,14 @@ function LoginInner() {
     <main className="flex min-h-svh items-center justify-center bg-forest px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 flex items-center gap-2 text-[#cdd8cf]">
-          <Compass className="size-6 text-terracotta" aria-hidden />
+          <Image
+            src="/images/airavat-logo.jpg"
+            alt=""
+            width={28}
+            height={28}
+            className="size-7 rounded-md object-cover"
+            priority
+          />
           <span className="text-lg font-bold tracking-tight text-white">Airavat CRM</span>
         </div>
 
