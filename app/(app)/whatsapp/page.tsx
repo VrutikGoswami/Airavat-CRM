@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, CheckCheck, Clock, Send, Sparkles, UserPlus } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
@@ -8,20 +9,25 @@ import { Avatar } from "@/components/ui/Avatar";
 import { StageBadge } from "@/components/ui/chips";
 import { useCreateModals } from "@/components/forms/CreateModals";
 import { quickReplies } from "@/lib/quick-replies";
-import { formatTime, relativeTime, daysUntil, formatDateRange } from "@/lib/format";
+import { messagingWindow } from "@/lib/messaging";
+import { formatTime, relativeTime, formatDateRange } from "@/lib/format";
 import type { Message } from "@/lib/types";
 
 export default function WhatsAppPage() {
   const ws = useWorkspace();
   const { data } = ws;
   const { openCreate } = useCreateModals();
+  const searchParams = useSearchParams();
+  const preselectId = searchParams.get("c");
 
   const conversations = useMemo(
     () => [...data.conversations].sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)),
     [data.conversations],
   );
-  const [activeId, setActiveId] = useState(conversations[0]?.id ?? "");
-  const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
+  const [activeId, setActiveId] = useState(
+    preselectId && conversations.some((c) => c.id === preselectId) ? preselectId : conversations[0]?.id ?? "",
+  );
+  const [mobilePane, setMobilePane] = useState<"list" | "thread">(preselectId ? "thread" : "list");
   const [draft, setDraft] = useState("");
   const [newName, setNewName] = useState("");
   const threadRef = useRef<HTMLDivElement>(null);
@@ -51,7 +57,7 @@ export default function WhatsAppPage() {
     setDraft("");
   };
 
-  const windowOpen = active ? daysUntil(active.windowExpiresAt) >= 0 : false;
+  const win = active ? messagingWindow(active) : null;
 
   return (
     <div className="flex h-[calc(100svh-6.5rem)] flex-col">
@@ -67,6 +73,7 @@ export default function WhatsAppPage() {
               const last = ws.messagesFor(c.id).slice(-1)[0];
               const assignee = ws.user(c.assignedConsultantId);
               const enq = ws.enquiry(c.enquiryId);
+              const cwin = messagingWindow(c);
               return (
                 <li key={c.id}>
                   <button
@@ -93,6 +100,12 @@ export default function WhatsAppPage() {
                     <div className="mt-1 flex items-center gap-2 pl-9">
                       {assignee ? <span className="text-[11px] text-muted">{assignee.name.split(" ")[0]}</span> : <span className="text-[11px] text-warning">Unassigned</span>}
                       {enq ? <span className="text-[11px] text-muted">· {enq.stage.replace(/-/g, " ")}</span> : null}
+                      <span
+                        className={`ml-auto text-[10px] font-semibold ${cwin.open ? "text-success" : "text-warning"}`}
+                        title={cwin.open ? `Messaging window open — ${cwin.hoursLeft}h left` : "Window closed — approved template required"}
+                      >
+                        {cwin.open ? `${cwin.hoursLeft}h` : "Template"}
+                      </span>
                     </div>
                   </button>
                 </li>
@@ -109,7 +122,18 @@ export default function WhatsAppPage() {
                 <button className="lg:hidden" onClick={() => setMobilePane("list")} aria-label="Back to list"><ArrowLeft className="size-5" /></button>
                 <div className="flex-1">
                   <p className="text-sm font-semibold">{active.displayName}</p>
-                  <p className="tnum text-xs text-muted">{active.phone}</p>
+                  <p className="tnum text-xs text-muted">
+                    {active.phone}
+                    {win ? (
+                      <span className="ml-2">
+                        {win.open ? (
+                          <span className="text-success">● 24h window open · {win.hoursLeft}h left</span>
+                        ) : (
+                          <span className="text-warning">● Window closed · approved template required</span>
+                        )}
+                      </span>
+                    ) : null}
+                  </p>
                 </div>
                 <select
                   className="field max-w-[150px] py-1 text-xs"
@@ -128,7 +152,7 @@ export default function WhatsAppPage() {
 
               {/* Composer */}
               <div className="border-t border-line px-3 py-2.5">
-                {!windowOpen ? (
+                {win && !win.open ? (
                   <p className="mb-2 rounded-md bg-warning/10 px-2 py-1 text-[11px] text-warning">
                     The 24-hour customer window has closed. Only approved template messages can be sent until the customer replies.
                   </p>

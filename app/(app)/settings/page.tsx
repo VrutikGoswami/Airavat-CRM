@@ -64,6 +64,31 @@ export default function SettingsPage() {
       </section>
 
       <section className="card p-5">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Supplier directory</h2>
+          <Badge tone="neutral">Read-only in demo</Badge>
+        </div>
+        <p className="mb-4 text-sm text-muted">
+          Reusable suppliers with contact, net rate and standard cancellation terms. Quotation
+          items reference these instead of hand-typing terms — the on-ramp to hotel-contract
+          management. Editing and new suppliers save once the database is connected.
+        </p>
+        <ul className="divide-y divide-line">
+          {data.suppliers.map((s) => (
+            <li key={s.id} className="py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{s.name}</p>
+                <Badge tone="neutral">{s.type}</Badge>
+              </div>
+              <p className="mt-0.5 text-xs text-muted">{s.contact}</p>
+              <p className="mt-1 text-xs text-muted">Net rate: {s.netRateNote}</p>
+              <p className="text-xs text-muted">Cancellation: {s.standardCancellation}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="card p-5">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">Data mode</h2>
         <p className="text-sm text-muted">
           Running in <strong className="text-ink">demo mode</strong> with in-memory sample data. Set{" "}

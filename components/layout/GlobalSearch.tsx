@@ -16,10 +16,18 @@ export function GlobalSearch() {
 
   const results = useMemo<Result[]>(() => {
     const q = query.trim().toLowerCase();
-    if (q.length < 2) return [];
+    // Raw phone numbers arrive with spaces/+/-; match on digits only.
+    const digits = query.replace(/[^0-9]/g, "");
+    const phoneHit = (value: string) => digits.length >= 3 && value.replace(/[^0-9]/g, "").includes(digits);
+    if (q.length < 2 && digits.length < 3) return [];
     const out: Result[] = [];
     for (const c of data.customers) {
-      if (c.name.toLowerCase().includes(q) || c.whatsapp.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) {
+      if (
+        c.name.toLowerCase().includes(q) ||
+        c.whatsapp.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        phoneHit(c.whatsapp)
+      ) {
         out.push({ href: `/customers/${c.id}`, label: c.name, sub: c.whatsapp, kind: "Customer" });
       }
     }
@@ -37,6 +45,17 @@ export function GlobalSearch() {
     for (const b of data.bookings) {
       if (b.ref.toLowerCase().includes(q) || b.destination.toLowerCase().includes(q) || (b.amadeusPnr ?? "").toLowerCase().includes(q)) {
         out.push({ href: `/bookings/${b.id}`, label: `${b.ref} · ${b.destination}`, sub: "Booking", kind: "Booking" });
+      }
+    }
+    // WhatsApp conversations — matches raw numbers, incl. leads not yet named.
+    for (const conv of data.conversations) {
+      if (phoneHit(conv.phone) || conv.phone.toLowerCase().includes(q) || conv.displayName.toLowerCase().includes(q)) {
+        out.push({
+          href: `/whatsapp?c=${conv.id}`,
+          label: conv.displayName,
+          sub: conv.customerId ? "WhatsApp conversation" : "WhatsApp · new number",
+          kind: "WhatsApp",
+        });
       }
     }
     return out.slice(0, 8);

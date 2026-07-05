@@ -84,6 +84,13 @@ export function travellersTotal(t: TravellerCount): number {
  */
 export const REFERENCE_TODAY = "2026-07-04";
 
+/**
+ * Reference "now" (a wall-clock time on the reference day) for hour-precision
+ * logic such as the WhatsApp 24h messaging window. Swap for `new Date()` in a
+ * live deployment.
+ */
+export const REFERENCE_NOW = "2026-07-04T16:00:00Z";
+
 const TODAY_ISO = () => REFERENCE_TODAY;
 
 /** Build an ISO date offset by `days` from the reference today. */

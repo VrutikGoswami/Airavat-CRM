@@ -1,4 +1,5 @@
 import { dateFromToday, dateTimeFromToday } from "@/lib/format";
+import { rateForCurrency } from "@/lib/fx";
 import type {
   Activity,
   Booking,
@@ -11,6 +12,7 @@ import type {
   Quotation,
   QuotationItem,
   QuotationOption,
+  Supplier,
   Task,
   User,
 } from "@/lib/types";
@@ -27,6 +29,7 @@ export type SeedData = {
   quotations: Quotation[];
   quotationOptions: QuotationOption[];
   quotationItems: QuotationItem[];
+  suppliers: Supplier[];
   bookings: Booking[];
   payments: Payment[];
   tasks: Task[];
@@ -153,7 +156,7 @@ export function createSeedData(): SeedData {
       destination: "Maasai Mara", travelStartDate: dateFromToday(33), travelEndDate: dateFromToday(37),
       travellers: { adults: 2, children: 0, infants: 0 }, currency: "USD", validUntil: dateFromToday(9),
       status: "viewed", createdById: "u-grace", createdAt: dateTimeFromToday(-4, 16, 0), sentAt: dateTimeFromToday(-4, 17, 30), viewedAt: dateTimeFromToday(-3, 8, 15),
-      depositPct: 30, exclusions: ["International flights", "Travel insurance", "Items of a personal nature"],
+      depositPct: 30, exchangeRateToKes: rateForCurrency("USD"), exclusions: ["International flights", "Travel insurance", "Items of a personal nature"],
       terms: "Prices are per person sharing and subject to availability at time of booking. A 30% deposit confirms the booking; balance due 30 days before travel.",
       selectedOptionLabel: undefined, shareToken: "mara-9c4nb-demo",
     },
@@ -162,7 +165,7 @@ export function createSeedData(): SeedData {
       destination: "Dubai", travelStartDate: dateFromToday(21), travelEndDate: dateFromToday(26),
       travellers: { adults: 3, children: 0, infants: 0 }, currency: "USD", validUntil: dateFromToday(4),
       status: "sent", createdById: "u-grace", createdAt: dateTimeFromToday(-2, 10, 0), sentAt: dateTimeFromToday(-2, 11, 0),
-      depositPct: 100, exclusions: ["Airport transfers in Dubai", "Excess baggage", "Visa fees"],
+      depositPct: 100, exchangeRateToKes: rateForCurrency("USD"), exclusions: ["Airport transfers in Dubai", "Excess baggage", "Visa fees"],
       terms: "Fares are not guaranteed until ticketed. Full payment required to issue tickets. Airline change and cancellation rules apply per fare.",
       shareToken: "corp-2k6hd-demo",
     },
@@ -171,7 +174,7 @@ export function createSeedData(): SeedData {
       destination: "Nairobi · Maasai Mara", travelStartDate: dateFromToday(40), travelEndDate: dateFromToday(48),
       travellers: { adults: 2, children: 2, infants: 0 }, currency: "EUR", validUntil: dateFromToday(-5),
       status: "accepted", createdById: "u-grace", createdAt: dateTimeFromToday(-12, 10, 0), sentAt: dateTimeFromToday(-12, 12, 0), viewedAt: dateTimeFromToday(-11, 9, 0),
-      depositPct: 30, exclusions: ["International flights", "Travel insurance", "Tips"],
+      depositPct: 30, exchangeRateToKes: rateForCurrency("EUR"), exclusions: ["International flights", "Travel insurance", "Tips"],
       terms: "A 30% deposit confirms the booking; balance due 21 days before travel. Family camp held on confirmation.",
       selectedOptionLabel: "B", shareToken: "devos-6d3pa-demo",
     },
@@ -179,18 +182,27 @@ export function createSeedData(): SeedData {
 
   const quotationOptions: QuotationOption[] = [
     { id: "qo-mara-a", quotationId: "q-mara", label: "A", name: "Road safari · mid-range camp", note: "Best value; a scenic but long drive each way." },
-    { id: "qo-mara-b", quotationId: "q-mara", label: "B", name: "Fly-in · conservancy camp", note: "More time on game drives, quieter conservancy." },
+    { id: "qo-mara-b", quotationId: "q-mara", label: "B", name: "Fly-in · conservancy camp", note: "More time on game drives, quieter conservancy.", recommended: true },
     { id: "qo-mara-c", quotationId: "q-mara", label: "C", name: "Fly-in · premium tented camp", note: "Small premium camp, private vehicle." },
-    { id: "qo-corp-a", quotationId: "q-corp", label: "A", name: "Kenya Airways — direct", note: "Direct both ways, convenient timings." },
+    { id: "qo-corp-a", quotationId: "q-corp", label: "A", name: "Kenya Airways — direct", note: "Direct both ways, convenient timings.", recommended: true },
     { id: "qo-corp-b", quotationId: "q-corp", label: "B", name: "Emirates — one stop", note: "Slightly cheaper, one stop, more baggage." },
     { id: "qo-devos-a", quotationId: "q-devos", label: "A", name: "Road safari · family lodge", note: "Budget-friendly, larger lodge." },
-    { id: "qo-devos-b", quotationId: "q-devos", label: "B", name: "Fly-in · family camp", note: "Chosen option — gentle pace, family tents." },
+    { id: "qo-devos-b", quotationId: "q-devos", label: "B", name: "Fly-in · family camp", note: "Chosen option — gentle pace, family tents.", recommended: true },
+  ];
+
+  const suppliers: Supplier[] = [
+    { id: "sup-safarilink", name: "Safarilink", type: "airline", contact: "res@safarilink.example · +254 20 600 0000", netRateNote: "Net scheduled light-aircraft fares, Wilson ⇄ Mara.", standardCancellation: "Non-refundable within 7 days of travel." },
+    { id: "sup-olarro", name: "Olarro Conservancy Camp", type: "camp", contact: "reservations@olarro.example", netRateNote: "Net full-board conservancy rates incl. game drives.", standardCancellation: "50% charge within 30 days; 100% within 14 days." },
+    { id: "sup-marasimba", name: "Mara Simba Family Camp", type: "camp", contact: "book@marasimba.example", netRateNote: "Net family-tent full-board rates.", standardCancellation: "50% charge within 30 days of travel." },
+    { id: "sup-serena", name: "Nairobi Serena", type: "hotel", contact: "reservations@serena.example", netRateNote: "Contracted B&B city rates.", standardCancellation: "Free until 48h before arrival." },
+    { id: "sup-kenya-airways", name: "Kenya Airways", type: "airline", contact: "via Amadeus / trade desk", netRateNote: "Published & negotiated corporate fares.", standardCancellation: "Airline fare rules apply per fare basis." },
+    { id: "sup-airavat", name: "Airavat (in-house)", type: "in-house", contact: "operations desk", netRateNote: "Own transfers, coordination and service fees.", standardCancellation: "Free until 24h before service." },
   ];
 
   const quotationItems: QuotationItem[] = [
     // q-mara option B (representative)
-    { id: "qi-1", optionId: "qo-mara-b", type: "flight", supplier: "Safarilink", description: "Wilson ⇄ Mara scheduled light aircraft, return", quantity: 2, costPrice: 320, markupPct: 12, sellingPrice: 358, taxPct: 0, notes: "Per person return", cancellation: "Non-refundable within 7 days" },
-    { id: "qi-2", optionId: "qo-mara-b", type: "hotel", supplier: "Olarro Conservancy Camp", description: "4 nights full board, incl. game drives & conservancy fees", startDate: dateFromToday(33), endDate: dateFromToday(37), quantity: 2, costPrice: 1180, markupPct: 15, sellingPrice: 1357, taxPct: 0, notes: "Per person sharing", cancellation: "50% within 30 days" },
+    { id: "qi-1", optionId: "qo-mara-b", type: "flight", supplier: "Safarilink", supplierId: "sup-safarilink", description: "Wilson ⇄ Mara scheduled light aircraft, return", quantity: 2, costPrice: 320, markupPct: 12, sellingPrice: 358, taxPct: 0, notes: "Per person return", cancellation: "Non-refundable within 7 days" },
+    { id: "qi-2", optionId: "qo-mara-b", type: "hotel", supplier: "Olarro Conservancy Camp", supplierId: "sup-olarro", description: "4 nights full board, incl. game drives & conservancy fees", startDate: dateFromToday(33), endDate: dateFromToday(37), quantity: 2, costPrice: 1180, markupPct: 15, sellingPrice: 1357, taxPct: 0, notes: "Per person sharing", cancellation: "50% within 30 days" },
     { id: "qi-3", optionId: "qo-mara-b", type: "transfer", supplier: "Airavat", description: "Nairobi hotel ⇄ Wilson Airport transfers", quantity: 2, costPrice: 45, markupPct: 20, sellingPrice: 54, taxPct: 0, cancellation: "Free until 24h before" },
     { id: "qi-4", optionId: "qo-mara-b", type: "service-fee", supplier: "Airavat", description: "Planning & coordination fee", quantity: 1, costPrice: 0, markupPct: 0, sellingPrice: 60, taxPct: 0 },
     // q-corp option A (representative)
@@ -291,6 +303,6 @@ export function createSeedData(): SeedData {
 
   return {
     users, customers, enquiries, quotations, quotationOptions, quotationItems,
-    bookings, payments, tasks, conversations, messages, documents, activities,
+    suppliers, bookings, payments, tasks, conversations, messages, documents, activities,
   };
 }

@@ -24,12 +24,16 @@ export default function QuotationDetailPage() {
   const customer = ws.customer(q.customerId);
   const consultant = ws.user(q.createdById);
   const options = ws.optionsFor(q.id);
-  const selected = q.selectedOptionLabel ?? options[0]?.label;
+  // Headline figures follow the recommended option (never a fixed/empty Option A).
+  const primaryLabel = ws.recommendedOptionLabel(q.id) ?? options[0]?.label;
+  const selected = primaryLabel;
   const existingBooking = ws.data.bookings.find((b) => b.quotationId === q.id);
 
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/share/${q.shareToken ?? q.id}` : "";
-  const primaryOption = options.find((o) => o.label === selected) ?? options[0];
-  const primaryTotal = primaryOption ? optionTotals(ws.itemsForOption(primaryOption.id)).total : 0;
+  const primaryOption = options.find((o) => o.label === primaryLabel) ?? options[0];
+  const primaryTotals = primaryOption ? optionTotals(ws.itemsForOption(primaryOption.id)) : null;
+  const primaryTotal = primaryTotals?.total ?? 0;
+  const valueKes = ws.quotationValueKes(q.id);
 
   const copyLink = async () => {
     try {
@@ -67,8 +71,13 @@ export default function QuotationDetailPage() {
             <p className="mt-1 text-xs text-muted">Valid until {formatDate(q.validUntil)} · Prepared by {consultant?.name}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-muted">Primary total (Option {selected})</p>
+            <p className="text-xs text-muted">Recommended total (Option {primaryLabel})</p>
             <p className="tnum text-2xl font-bold">{money(primaryTotal, q.currency)}</p>
+            {q.currency !== "KES" ? (
+              <p className="tnum mt-0.5 text-xs text-muted">
+                ≈ {money(valueKes, "KES")} · rate locked at 1 {q.currency} = {q.exchangeRateToKes} KES
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -106,21 +115,34 @@ export default function QuotationDetailPage() {
             <div key={o.id} className={`card p-5 ${isSel ? "ring-2 ring-terracotta" : ""}`}>
               <div className="flex items-center justify-between">
                 <span className="badge badge-info">Option {o.label}</span>
-                {isSel ? <span className="text-xs font-semibold text-terracotta">Selected</span> : null}
+                {o.recommended ? (
+                  <span className="text-xs font-semibold text-terracotta">Recommended</span>
+                ) : o.label === q.selectedOptionLabel ? (
+                  <span className="text-xs font-semibold text-terracotta">Selected</span>
+                ) : null}
               </div>
               <h3 className="mt-2 font-semibold">{o.name}</h3>
               {o.note ? <p className="mt-1 text-xs text-muted">{o.note}</p> : null}
               <ul className="mt-3 divide-y divide-line text-sm">
-                {items.map((i) => (
-                  <li key={i.id} className="py-2">
-                    <div className="flex justify-between gap-2">
-                      <span className="font-medium">{QUOTATION_ITEM_LABELS[i.type]}</span>
-                      <span className="tnum text-muted">{money(i.sellingPrice * i.quantity, q.currency)}</span>
-                    </div>
-                    <p className="text-xs text-muted">{i.supplier ? `${i.supplier} — ` : ""}{i.description}{i.quantity > 1 ? ` ×${i.quantity}` : ""}</p>
-                    {i.cancellation ? <p className="text-[11px] text-muted">Cancellation: {i.cancellation}</p> : null}
-                  </li>
-                ))}
+                {items.map((i) => {
+                  const sup = ws.supplier(i.supplierId);
+                  const cancellation = sup?.standardCancellation ?? i.cancellation;
+                  return (
+                    <li key={i.id} className="py-2">
+                      <div className="flex justify-between gap-2">
+                        <span className="font-medium">{QUOTATION_ITEM_LABELS[i.type]}</span>
+                        <span className="tnum text-muted">{money(i.sellingPrice * i.quantity, q.currency)}</span>
+                      </div>
+                      <p className="text-xs text-muted">{i.supplier ? `${i.supplier} — ` : ""}{i.description}{i.quantity > 1 ? ` ×${i.quantity}` : ""}</p>
+                      {cancellation ? (
+                        <p className="text-[11px] text-muted">
+                          Cancellation: {cancellation}
+                          {sup ? <span className="text-muted/80"> · via supplier directory</span> : null}
+                        </p>
+                      ) : null}
+                    </li>
+                  );
+                })}
                 {items.length === 0 ? <li className="py-2 text-muted">No services.</li> : null}
               </ul>
               <dl className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
@@ -131,6 +153,46 @@ export default function QuotationDetailPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Internal margin — staff only; excluded from the PDF and client share link */}
+      <div className="card border-l-2 border-l-terracotta p-5 print:hidden">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Internal margin</h2>
+          <span className="badge badge-neutral">Staff only</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-muted">
+                <th className="py-1.5 pr-4 font-semibold">Option</th>
+                <th className="py-1.5 pr-4 text-right font-semibold">Cost</th>
+                <th className="py-1.5 pr-4 text-right font-semibold">Sell</th>
+                <th className="py-1.5 pr-4 text-right font-semibold">Margin</th>
+                <th className="py-1.5 text-right font-semibold">Margin %</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {options.map((o) => {
+                const t = optionTotals(ws.itemsForOption(o.id));
+                const pct = t.sellingExTax > 0 ? Math.round((t.margin / t.sellingExTax) * 100) : 0;
+                return (
+                  <tr key={o.id} className={o.label === primaryLabel ? "font-semibold" : ""}>
+                    <td className="py-2 pr-4">
+                      Option {o.label}
+                      {o.recommended ? <span className="ml-1 text-xs font-normal text-terracotta">· recommended</span> : null}
+                    </td>
+                    <td className="tnum py-2 pr-4 text-right">{money(t.cost, q.currency)}</td>
+                    <td className="tnum py-2 pr-4 text-right">{money(t.sellingExTax, q.currency)}</td>
+                    <td className="tnum py-2 pr-4 text-right" style={{ color: "var(--color-success)" }}>{money(t.margin, q.currency)}</td>
+                    <td className="tnum py-2 text-right">{pct}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-muted">Not shown on the customer PDF or share link.</p>
       </div>
 
       {/* Terms + exclusions */}

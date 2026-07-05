@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createSeedData, type SeedData } from "@/lib/seed";
 import { optionTotals } from "@/lib/quotation";
+import { toKes } from "@/lib/fx";
 import { dateFromToday, isToday } from "@/lib/format";
 import type {
   Activity,
@@ -25,6 +26,7 @@ import type {
   Quotation,
   QuotationItem,
   QuotationOption,
+  Supplier,
   Task,
   User,
   WaitingOn,
@@ -83,10 +85,17 @@ type WorkspaceValue = {
   enquiry: (id?: string) => Enquiry | undefined;
   quotation: (id?: string) => Quotation | undefined;
   booking: (id?: string) => Booking | undefined;
+  supplier: (id?: string) => Supplier | undefined;
   optionsFor: (quotationId: string) => QuotationOption[];
   itemsForOption: (optionId: string) => QuotationItem[];
   itemsForQuotation: (quotationId: string) => QuotationItem[];
+  /** Label of the option that drives the headline total (recommended → selected → first with items). */
+  recommendedOptionLabel: (quotationId: string) => "A" | "B" | "C" | undefined;
   quotationTotal: (quotationId: string, optionLabel?: "A" | "B" | "C") => number;
+  /** Recommended-option total converted to KES using the quote's snapshot FX rate. */
+  quotationValueKes: (quotationId: string) => number;
+  /** Pipeline value for an enquiry in KES: its quote's recommended total (FX-locked), else the estimate. */
+  enquiryValueKes: (enquiryId: string) => number;
   messagesFor: (conversationId: string) => Message[];
   activitiesFor: (filter: { customerId?: string; enquiryId?: string; bookingId?: string }) => Activity[];
   outstandingFor: (booking: Booking) => number;
@@ -163,16 +172,67 @@ export function WorkspaceProvider({
     },
     [data.quotationOptions, data.quotationItems],
   );
+  const supplier = useCallback((id?: string) => data.suppliers.find((s) => s.id === id), [data.suppliers]);
+
+  /**
+   * The option that drives a quote's headline total. Priority: an explicit
+   * override, else the recommended option, else the selected option, else the
+   * first option that actually has line items (never an empty shell), else the
+   * first option.
+   */
+  const primaryOptionLabel = useCallback(
+    (quotationId: string, override?: "A" | "B" | "C"): "A" | "B" | "C" | undefined => {
+      const options = data.quotationOptions.filter((o) => o.quotationId === quotationId);
+      if (options.length === 0) return undefined;
+      if (override) return options.find((o) => o.label === override)?.label;
+      const hasItems = (o: QuotationOption) => data.quotationItems.some((i) => i.optionId === o.id);
+      const recommended = options.find((o) => o.recommended);
+      if (recommended) return recommended.label;
+      const q = data.quotations.find((x) => x.id === quotationId);
+      if (q?.selectedOptionLabel) {
+        const sel = options.find((o) => o.label === q.selectedOptionLabel);
+        if (sel) return sel.label;
+      }
+      return (options.find(hasItems) ?? options[0]).label;
+    },
+    [data.quotationOptions, data.quotationItems, data.quotations],
+  );
+
+  const recommendedOptionLabel = useCallback(
+    (quotationId: string) => primaryOptionLabel(quotationId),
+    [primaryOptionLabel],
+  );
+
   const quotationTotal = useCallback(
     (quotationId: string, optionLabel?: "A" | "B" | "C") => {
-      const options = data.quotationOptions.filter((o) => o.quotationId === quotationId);
-      const chosen = optionLabel ? options.filter((o) => o.label === optionLabel) : options.slice(0, 1);
-      const target = chosen[0] ?? options[0];
-      if (!target) return 0;
-      const items = data.quotationItems.filter((i) => i.optionId === target.id);
+      const label = primaryOptionLabel(quotationId, optionLabel);
+      if (!label) return 0;
+      const opt = data.quotationOptions.find((o) => o.quotationId === quotationId && o.label === label);
+      if (!opt) return 0;
+      const items = data.quotationItems.filter((i) => i.optionId === opt.id);
       return optionTotals(items).total;
     },
-    [data.quotationOptions, data.quotationItems],
+    [primaryOptionLabel, data.quotationOptions, data.quotationItems],
+  );
+
+  const quotationValueKes = useCallback(
+    (quotationId: string) => {
+      const q = data.quotations.find((x) => x.id === quotationId);
+      if (!q) return 0;
+      return toKes(quotationTotal(quotationId), q.exchangeRateToKes);
+    },
+    [data.quotations, quotationTotal],
+  );
+
+  const enquiryValueKes = useCallback(
+    (enquiryId: string) => {
+      // Prefer a non-draft quote for this enquiry; fall back to the estimate.
+      const quotes = data.quotations.filter((q) => q.enquiryId === enquiryId);
+      const q = quotes.find((x) => x.status !== "draft") ?? quotes[0];
+      if (q) return toKes(quotationTotal(q.id), q.exchangeRateToKes);
+      return data.enquiries.find((e) => e.id === enquiryId)?.estimatedValue ?? 0;
+    },
+    [data.quotations, data.enquiries, quotationTotal],
   );
 
   const messagesFor = useCallback(
@@ -408,7 +468,8 @@ export function WorkspaceProvider({
     (quotationId: string): string | null => {
       const q = data.quotations.find((x) => x.id === quotationId);
       if (!q) return null;
-      const label = q.selectedOptionLabel ?? optionsFor(quotationId)[0]?.label;
+      // Convert the recommended option (never a fixed/empty Option A).
+      const label = primaryOptionLabel(quotationId);
       const opt = data.quotationOptions.find((o) => o.quotationId === quotationId && o.label === label);
       const items = opt ? data.quotationItems.filter((i) => i.optionId === opt.id) : [];
       const totals = optionTotals(items);
@@ -451,7 +512,7 @@ export function WorkspaceProvider({
       });
       return id;
     },
-    [data, update, optionsFor, currentUserId, logActivity],
+    [data, update, primaryOptionLabel, currentUserId, logActivity],
   );
 
   const updateBookingStatus = useCallback(
@@ -600,10 +661,14 @@ export function WorkspaceProvider({
     enquiry,
     quotation,
     booking,
+    supplier,
     optionsFor,
     itemsForOption,
     itemsForQuotation,
+    recommendedOptionLabel,
     quotationTotal,
+    quotationValueKes,
+    enquiryValueKes,
     messagesFor,
     activitiesFor,
     outstandingFor,

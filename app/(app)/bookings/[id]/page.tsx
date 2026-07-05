@@ -9,12 +9,15 @@ import { Banknote } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { EmptyState } from "@/components/ui/misc";
 import { BookingStatusBadge } from "@/components/ui/chips";
+import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Field } from "@/components/forms/Field";
 import { WhatsAppLink } from "@/components/ui/WhatsAppLink";
 import { paymentSchema, type PaymentForm } from "@/lib/schemas";
-import { BOOKING_STATUS_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels";
-import { money, formatDateRange, travellersLabel, relativeTime } from "@/lib/format";
+import { BOOKING_STATUS_LABELS, PAYMENT_METHOD_LABELS, TASK_TYPE_LABELS } from "@/lib/labels";
+import { paymentState, balanceDueDate } from "@/lib/booking";
+import { deriveBookingTasks } from "@/lib/task-rules";
+import { money, formatDate, formatDateRange, travellersLabel, relativeTime } from "@/lib/format";
 import type { BookingStatus } from "@/lib/types";
 
 export default function BookingDetailPage() {
@@ -35,6 +38,9 @@ export default function BookingDetailPage() {
   const payments = ws.data.payments.filter((p) => p.bookingId === b.id);
   const outstanding = ws.outstandingFor(b);
   const profit = b.totalSelling - b.totalCost;
+  const pay = paymentState(b);
+  const balanceDue = balanceDueDate(b);
+  const autoTasks = deriveBookingTasks(b);
 
   const submitPayment = handleSubmit((v) => {
     ws.recordPayment(b.id, v.amount, v.method, v.reference);
@@ -55,9 +61,14 @@ export default function BookingDetailPage() {
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
               <span className="text-xs font-semibold text-muted">{b.ref}</span>
-              <BookingStatusBadge status={b.status} />
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                Confirmation <BookingStatusBadge status={b.status} />
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                Payment <Badge tone={pay.tone}>{pay.label}</Badge>
+              </span>
             </div>
             <h1 className="mt-1 text-xl font-bold">{b.destination}</h1>
             <p className="mt-1 text-sm text-muted">
@@ -73,7 +84,7 @@ export default function BookingDetailPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
-          <span className="field-label mb-0">Status</span>
+          <span className="field-label mb-0">Confirmation status</span>
           <select
             className="field max-w-[220px]"
             value={b.status}
@@ -81,6 +92,7 @@ export default function BookingDetailPage() {
           >
             {Object.entries(BOOKING_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
+          <span className="text-xs text-muted">Payment status is tracked separately, from amounts received.</span>
         </div>
       </div>
 
@@ -136,8 +148,32 @@ export default function BookingDetailPage() {
             <div className="my-2 border-t border-line" />
             <div className="flex justify-between"><dt className="text-muted">Amount paid</dt><dd className="tnum">{money(b.amountPaid)}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Outstanding balance</dt><dd className="tnum font-bold" style={outstanding > 0 ? { color: "var(--color-warning)" } : { color: "var(--color-success)" }}>{outstanding > 0 ? money(outstanding) : "Fully paid"}</dd></div>
+            {outstanding > 0 && balanceDue ? (
+              <div className="flex justify-between"><dt className="text-muted">Balance due by</dt><dd className="tnum">{formatDate(balanceDue)}</dd></div>
+            ) : null}
           </dl>
           {b.quotationId ? <Link href={`/quotations/${b.quotationId}`} className="mt-4 inline-block text-sm font-semibold text-terracotta">View source quotation →</Link> : null}
+
+          <div className="mt-5 border-t border-line pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Scheduled automatically</h3>
+              <span className="badge badge-neutral">Activates with database</span>
+            </div>
+            <ul className="space-y-2">
+              {autoTasks.map((t) => (
+                <li key={t.key} className="text-sm">
+                  <p className="font-medium">{t.title}</p>
+                  <p className="text-xs text-muted">
+                    {TASK_TYPE_LABELS[t.type]} · due {formatDate(t.dueDate)} · {t.reason}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-muted">
+              Generated from the booking terms. Not yet saved — these become real tasks when the
+              database is connected.
+            </p>
+          </div>
         </div>
       </div>
 

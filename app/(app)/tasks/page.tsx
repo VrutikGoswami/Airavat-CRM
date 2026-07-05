@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { PageHeader } from "@/components/ui/misc";
@@ -17,9 +17,20 @@ export default function TasksPage() {
   const { openCreate } = useCreateModals();
   const searchParams = useSearchParams();
   const initialDueToday = searchParams.get("due") === "today";
-  const [scope, setScope] = useState<"mine" | "all">(initialDueToday ? "all" : "mine");
+  const highlightTaskId = searchParams.get("task");
+  // Admins oversee the team, so default them to All tasks (My tasks is empty for
+  // them and would contradict the dashboard's team-wide "due today" count).
+  // A deep-linked task also shows across the team so it's always reachable.
+  const [scope, setScope] = useState<"mine" | "all">(
+    initialDueToday || highlightTaskId || currentUser.role === "admin" ? "all" : "mine",
+  );
   const [show, setShow] = useState<"open" | "done">("open");
   const [dueTodayOnly, setDueTodayOnly] = useState(initialDueToday);
+
+  useEffect(() => {
+    if (!highlightTaskId) return;
+    document.getElementById(`task-${highlightTaskId}`)?.scrollIntoView({ block: "center" });
+  }, [highlightTaskId]);
 
   const tasks = useMemo(() => {
     return data.tasks
@@ -79,7 +90,11 @@ export default function TasksPage() {
                   const c = data.customers.find((x) => x.id === t.customerId);
                   const assignee = ws.user(t.assignedToId);
                   return (
-                    <div key={t.id} className="flex items-start gap-3 p-3.5">
+                    <div
+                      key={t.id}
+                      id={`task-${t.id}`}
+                      className={`flex items-start gap-3 p-3.5 ${t.id === highlightTaskId ? "bg-surface-2 ring-1 ring-inset ring-terracotta" : ""}`}
+                    >
                       <button
                         type="button"
                         onClick={() => ws.toggleTask(t.id)}

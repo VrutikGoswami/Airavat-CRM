@@ -136,6 +136,8 @@ export type QuotationItem = {
   optionId: string;
   type: QuotationItemType;
   supplier: string;
+  /** Optional reference into the supplier directory (see Supplier). */
+  supplierId?: string;
   description: string;
   startDate?: string;
   endDate?: string;
@@ -154,6 +156,21 @@ export type QuotationOption = {
   label: "A" | "B" | "C";
   name: string;
   note?: string;
+  /** The option the quote's headline total, pipeline value and reports use. */
+  recommended?: boolean;
+};
+
+/**
+ * Light supplier directory — the on-ramp to full hotel-contract management.
+ * Quotation items may reference a supplier instead of hand-typing terms.
+ */
+export type Supplier = {
+  id: string;
+  name: string;
+  type: "airline" | "camp" | "lodge" | "hotel" | "transport" | "activity" | "in-house";
+  contact: string;
+  netRateNote: string;
+  standardCancellation: string;
 };
 
 export type Quotation = {
@@ -166,6 +183,8 @@ export type Quotation = {
   travelEndDate: string;
   travellers: TravellerCount;
   currency: Currency;
+  /** Snapshot rate captured when the quote is created; used for KES reporting. */
+  exchangeRateToKes: number;
   validUntil: string;
   status: QuotationStatus;
   createdById: string;

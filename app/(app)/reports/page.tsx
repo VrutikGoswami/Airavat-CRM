@@ -4,8 +4,26 @@ import { useMemo, useState } from "react";
 import { useWorkspace } from "@/lib/workspace";
 import { PageHeader, StatTile } from "@/components/ui/misc";
 import { LEAD_SOURCE_LABELS, LOST_REASON_LABELS } from "@/lib/labels";
-import { money } from "@/lib/format";
+import { FINANCIAL_BASIS_LABEL } from "@/lib/booking";
+import { money, REFERENCE_TODAY, formatDate } from "@/lib/format";
 import type { LeadSource, LostReason } from "@/lib/types";
+
+const REF_YEAR = Number(REFERENCE_TODAY.slice(0, 4));
+const REF_MONTH = Number(REFERENCE_TODAY.slice(5, 7)); // 1-12
+const iso = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10);
+const lastDayOfMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+
+type Preset = { id: string; label: string; from: string; to: string };
+const PRESETS: Preset[] = (() => {
+  const qStart = Math.floor((REF_MONTH - 1) / 3) * 3 + 1;
+  const qEnd = qStart + 2;
+  return [
+    { id: "all", label: "All time", from: "", to: "" },
+    { id: "month", label: "This month", from: iso(REF_YEAR, REF_MONTH, 1), to: iso(REF_YEAR, REF_MONTH, lastDayOfMonth(REF_YEAR, REF_MONTH)) },
+    { id: "quarter", label: "This quarter", from: iso(REF_YEAR, qStart, 1), to: iso(REF_YEAR, qEnd, lastDayOfMonth(REF_YEAR, qEnd)) },
+    { id: "year", label: "This year", from: iso(REF_YEAR, 1, 1), to: iso(REF_YEAR, 12, 31) },
+  ];
+})();
 
 function Bar({ label, value, max, valueLabel }: { label: string; value: number; max: number; valueLabel?: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
@@ -26,13 +44,32 @@ export default function ReportsPage() {
   const ws = useWorkspace();
   const { data } = ws;
   const [consultant, setConsultant] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
+  const activePreset =
+    PRESETS.find((p) => p.from === from && p.to === to)?.id ?? (from || to ? "custom" : "all");
+
+  // Everything is filtered by booked/created date within [from, to] so the
+  // period metrics use one explicit basis (see FINANCIAL_BASIS_LABEL).
   const scope = useMemo(() => {
-    const enquiries = data.enquiries.filter((e) => !consultant || e.assignedConsultantId === consultant);
-    const bookings = data.bookings.filter((b) => !consultant || b.assignedConsultantId === consultant);
-    const quotations = data.quotations.filter((q) => !consultant || q.createdById === consultant);
+    const inRange = (isoDate: string) => {
+      const d = isoDate.slice(0, 10);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    };
+    const enquiries = data.enquiries.filter(
+      (e) => (!consultant || e.assignedConsultantId === consultant) && inRange(e.createdAt),
+    );
+    const bookings = data.bookings.filter(
+      (b) => (!consultant || b.assignedConsultantId === consultant) && inRange(b.createdAt),
+    );
+    const quotations = data.quotations.filter(
+      (q) => (!consultant || q.createdById === consultant) && inRange(q.createdAt),
+    );
     return { enquiries, bookings, quotations };
-  }, [data, consultant]);
+  }, [data, consultant, from, to]);
 
   const bySource = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -82,11 +119,39 @@ export default function ReportsPage() {
         }
       />
 
+      {/* Date-range filter */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => { setFrom(p.from); setTo(p.to); }}
+              className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${activePreset === p.id ? "border-terracotta bg-surface text-ink shadow-sm" : "border-line text-muted"}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <label className="text-xs font-semibold text-muted">
+          From
+          <input type="date" className="field mt-1 py-1.5" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="text-xs font-semibold text-muted">
+          To
+          <input type="date" className="field mt-1 py-1.5" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
+      </div>
+      <p className="-mt-2 text-xs text-muted">
+        Financial figures are {FINANCIAL_BASIS_LABEL}
+        {from || to ? ` · ${from ? formatDate(from) : "start"} → ${to ? formatDate(to) : "today"}` : " · all time"}.
+      </p>
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Conversion rate" value={`${conversion}%`} hint={`${bookedEnquiries}/${totalEnquiries} enquiries booked`} />
         <StatTile label="Quotation acceptance" value={`${acceptanceRate}%`} hint={`${acceptedQuotes.length}/${decidedQuotes.length} decided`} />
-        <StatTile label="Confirmed value" value={money(confirmedValue)} hint="Non-cancelled bookings" />
-        <StatTile label="Gross profit" value={money(grossProfit)} hint="Selling − cost" />
+        <StatTile label="Confirmed value" value={money(confirmedValue)} hint={`Non-cancelled · ${FINANCIAL_BASIS_LABEL}`} />
+        <StatTile label="Gross profit" value={money(grossProfit)} hint={`Selling − cost · ${FINANCIAL_BASIS_LABEL}`} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">

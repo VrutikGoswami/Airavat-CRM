@@ -13,21 +13,33 @@ import { useWorkspace } from "@/lib/workspace";
 import { PageHeader, Section } from "@/components/ui/misc";
 import { StageBadge, PriorityDot } from "@/components/ui/chips";
 import { Avatar } from "@/components/ui/Avatar";
-import { money, shortMoney, formatDateRange, formatTime, relativeTime, isOverdue, isToday, daysUntil } from "@/lib/format";
+import { money, shortMoney, formatDateRange, formatTime, relativeTime, isOverdue, isToday, daysUntil, REFERENCE_TODAY } from "@/lib/format";
 import { SERVICE_LABELS, TASK_TYPE_LABELS } from "@/lib/labels";
+import { FINANCIAL_BASIS_LABEL } from "@/lib/booking";
+import { deadlineFromCancellation, daysBetween } from "@/lib/cancellation";
+import type { Task } from "@/lib/types";
+
+/** Deep-link a task to its most specific record (never the generic list). */
+function taskHref(t: Task): string {
+  if (t.bookingId) return `/bookings/${t.bookingId}`;
+  if (t.enquiryId) return `/enquiries/${t.enquiryId}`;
+  if (t.customerId) return `/customers/${t.customerId}`;
+  return `/tasks?task=${t.id}`;
+}
 
 export default function DashboardPage() {
   const ws = useWorkspace();
   const { data, currentUser } = ws;
+  const { recommendedOptionLabel, optionsFor, itemsForOption, supplier } = ws;
   const m = ws.metrics();
 
   const metricCards = [
     { label: "New enquiries", value: String(m.newEnquiries), href: "/pipeline?stage=new", hint: "Not yet actioned" },
     { label: "Quotations awaiting reply", value: String(m.quotationsAwaiting), href: "/quotations?status=awaiting", hint: "Sent or viewed" },
     { label: "Follow-ups due today", value: String(m.followUpsDueToday), href: "/tasks?due=today", hint: "Across the team" },
-    { label: "Confirmed bookings this month", value: String(m.confirmedThisMonth), href: "/bookings", hint: "New bookings" },
+    { label: "Confirmed bookings this month", value: String(m.confirmedThisMonth), href: "/bookings", hint: `Booked this month (${FINANCIAL_BASIS_LABEL})` },
     { label: "Outstanding balances", value: shortMoney(m.outstandingBalance), href: "/bookings?filter=outstanding", hint: "Owed by customers" },
-    { label: "Gross profit this month", value: shortMoney(m.grossProfitThisMonth), href: "/reports", hint: "Selling − cost" },
+    { label: "Gross profit this month", value: shortMoney(m.grossProfitThisMonth), href: "/reports", hint: `Selling − cost · ${FINANCIAL_BASIS_LABEL}` },
   ];
 
   // Needs attention: prioritised issues.
@@ -35,15 +47,36 @@ export default function DashboardPage() {
     const items: { id: string; icon: "overdue" | "whatsapp" | "expiry" | "payment" | "depart"; text: string; href: string; sub: string }[] = [];
     for (const t of data.tasks.filter((t) => !t.done && isOverdue(t.dueAt))) {
       const c = data.customers.find((x) => x.id === t.customerId);
-      items.push({ id: `t-${t.id}`, icon: "overdue", text: t.title, sub: `Overdue follow-up${c ? ` · ${c.name}` : ""}`, href: t.enquiryId ? `/enquiries/${t.enquiryId}` : "/tasks" });
+      items.push({ id: `t-${t.id}`, icon: "overdue", text: t.title, sub: `Overdue task${c ? ` · ${c.name}` : ""}`, href: taskHref(t) });
     }
     for (const conv of data.conversations.filter((c) => c.unreadCount > 0)) {
-      items.push({ id: `c-${conv.id}`, icon: "whatsapp", text: `Unanswered WhatsApp from ${conv.displayName}`, sub: `${conv.unreadCount} unread message${conv.unreadCount > 1 ? "s" : ""}`, href: "/whatsapp" });
+      items.push({ id: `c-${conv.id}`, icon: "whatsapp", text: `Unanswered WhatsApp from ${conv.displayName}`, sub: `${conv.unreadCount} unread message${conv.unreadCount > 1 ? "s" : ""}`, href: `/whatsapp?c=${conv.id}` });
     }
     for (const q of data.quotations.filter((q) => (q.status === "sent" || q.status === "viewed") && daysUntil(q.validUntil) <= 5)) {
       const c = data.customers.find((x) => x.id === q.customerId);
       const d = daysUntil(q.validUntil);
       items.push({ id: `q-${q.id}`, icon: "expiry", text: `${q.ref} expiring ${d < 0 ? "— expired" : d === 0 ? "today" : `in ${d}d`}`, sub: `${c?.name ?? ""} · ${q.destination}`, href: `/quotations/${q.id}` });
+    }
+    // Upcoming supplier cancellation deadlines on active quotes (B12 — interim
+    // parser; structured terms arrive with the supplier directory / database).
+    for (const q of data.quotations.filter((q) => q.status === "sent" || q.status === "viewed" || q.status === "accepted")) {
+      const label = recommendedOptionLabel(q.id);
+      const opt = optionsFor(q.id).find((o) => o.label === label);
+      if (!opt) continue;
+      for (const it of itemsForOption(opt.id)) {
+        const terms = supplier(it.supplierId)?.standardCancellation ?? it.cancellation;
+        const dl = deadlineFromCancellation(terms, q.travelStartDate);
+        if (!dl) continue;
+        const d = daysBetween(REFERENCE_TODAY, dl.deadline);
+        if (d < 0 || d > 10) continue;
+        items.push({
+          id: `x-${it.id}`,
+          icon: "expiry",
+          text: `Cancellation deadline ${d === 0 ? "today" : `in ${d}d`} — ${it.supplier}`,
+          sub: `${q.ref} · ${dl.penalty}`,
+          href: `/quotations/${q.id}`,
+        });
+      }
     }
     for (const b of data.bookings.filter((b) => b.status === "awaiting-payment" && b.amountPaid < b.totalSelling)) {
       const c = data.customers.find((x) => x.id === b.customerId);
@@ -53,8 +86,8 @@ export default function DashboardPage() {
       const c = data.customers.find((x) => x.id === b.customerId);
       items.push({ id: `d-${b.id}`, icon: "depart", text: `${b.ref} departs in ${daysUntil(b.travelStartDate)}d — not fully confirmed`, sub: `${c?.name ?? ""} · ${b.destination}`, href: `/bookings/${b.id}` });
     }
-    return items.slice(0, 8);
-  }, [data]);
+    return items.slice(0, 10);
+  }, [data, recommendedOptionLabel, optionsFor, itemsForOption, supplier]);
 
   const myTasksToday = data.tasks
     .filter((t) => !t.done && t.assignedToId === currentUser.id && (isToday(t.dueAt) || isOverdue(t.dueAt)))

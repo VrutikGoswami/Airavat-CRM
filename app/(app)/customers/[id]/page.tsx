@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/misc";
 import { WhatsAppLink } from "@/components/ui/WhatsAppLink";
 import { useCreateModals } from "@/components/forms/CreateModals";
 import { ActivityTimeline } from "@/components/entities/ActivityTimeline";
+import { deriveCustomerDocuments } from "@/lib/documents";
 import {
   CUSTOMER_TYPE_LABELS,
   CONTACT_METHOD_LABELS,
@@ -39,6 +40,7 @@ export default function CustomerPage() {
   const quotations = data.quotations.filter((q) => q.customerId === customer.id);
   const conversations = data.conversations.filter((c) => c.customerId === customer.id);
   const documents = data.documents.filter((d) => d.customerId === customer.id);
+  const generatedDocs = deriveCustomerDocuments(customer.id, data.bookings, data.payments);
   const activeEnquiry = enquiries.find((e) => e.status === "open");
   const outstanding = ws.customerOutstanding(customer.id);
   const activities = ws.activitiesFor({ customerId: customer.id });
@@ -183,19 +185,53 @@ export default function CustomerPage() {
       ) : null}
 
       {tab === "Documents" ? (
-        documents.length === 0 ? (
+        documents.length === 0 && generatedDocs.length === 0 ? (
           <EmptyState title="No documents" hint="Quotations, invoices and vouchers attached to this customer will appear here." icon={<FileText className="size-6" />} />
         ) : (
-          <div className="card divide-y divide-line">
-            {documents.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 p-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="size-4 text-muted" aria-hidden />
-                  <span className="text-sm font-medium">{d.name}</span>
+          <div className="space-y-5">
+            {documents.length > 0 ? (
+              <div>
+                <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">On file</h2>
+                <div className="card divide-y divide-line">
+                  {documents.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-3 p-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="size-4 text-muted" aria-hidden />
+                        <span className="text-sm font-medium">{d.name}</span>
+                      </div>
+                      <span className="text-xs capitalize text-muted">{d.kind} · {formatDate(d.uploadedAt)}</span>
+                    </div>
+                  ))}
                 </div>
-                <span className="text-xs capitalize text-muted">{d.kind} · {formatDate(d.uploadedAt)}</span>
               </div>
-            ))}
+            ) : null}
+
+            {generatedDocs.length > 0 ? (
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Generated automatically</h2>
+                  <Badge tone="neutral">Available when database connected</Badge>
+                </div>
+                <div className="card divide-y divide-line">
+                  {generatedDocs.map((g) => (
+                    <div key={g.key} className="flex items-center justify-between gap-3 p-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="size-4 text-muted" aria-hidden />
+                        <span className="text-sm font-medium">{g.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs capitalize text-muted">{g.kind} · {formatDate(g.at)}</span>
+                        <p className="text-[11px] text-muted">{g.reason}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted">
+                  Invoices, receipts and travel vouchers are generated from payments and
+                  confirmations. Download activates when the database and storage are connected.
+                </p>
+              </div>
+            ) : null}
           </div>
         )
       ) : null}

@@ -29,11 +29,15 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   }
 
   const customer = seed.customers.find((c) => c.id === q.customerId);
-  const options = seed.quotationOptions.filter((o) => o.quotationId === q.id);
   const consultant = seed.users.find((u) => u.id === q.createdById);
+  // Only present options that actually have services — never an empty shell.
+  const options = seed.quotationOptions
+    .filter((o) => o.quotationId === q.id)
+    .filter((o) => seed.quotationItems.some((i) => i.optionId === o.id));
+  const gridCols = options.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2";
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <main className="mx-auto max-w-5xl px-4 py-10">
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Compass className="size-6 text-terracotta" aria-hidden />
@@ -48,18 +52,25 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       </p>
       <p className="mt-1 text-xs text-muted">Valid until {formatDate(q.validUntil)}</p>
 
-      <div className="mt-6 space-y-4">
+      {options.length > 1 ? (
+        <p className="mt-6 text-sm font-medium">Compare your options side by side:</p>
+      ) : null}
+      <div className={`mt-3 grid items-start gap-4 ${gridCols}`}>
         {options.map((o) => {
           const items = seed.quotationItems.filter((i) => i.optionId === o.id);
           const t = optionTotals(items);
           return (
-            <section key={o.id} className="card p-5">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold"><span className="badge badge-info mr-2">Option {o.label}</span>{o.name}</h2>
-                <span className="tnum font-bold">{money(t.total, q.currency)}</span>
+            <section
+              key={o.id}
+              className={`card flex h-full flex-col p-5 ${o.recommended ? "ring-2 ring-terracotta" : ""}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="badge badge-info">Option {o.label}</span>
+                {o.recommended ? <span className="text-xs font-semibold text-terracotta">Recommended</span> : null}
               </div>
+              <h2 className="mt-2 font-semibold">{o.name}</h2>
               {o.note ? <p className="mt-1 text-sm text-muted">{o.note}</p> : null}
-              <ul className="mt-3 divide-y divide-line text-sm">
+              <ul className="mt-3 flex-1 divide-y divide-line text-sm">
                 {items.map((i) => (
                   <li key={i.id} className="flex justify-between gap-3 py-2">
                     <span>{QUOTATION_ITEM_LABELS[i.type]} — {i.description}</span>
@@ -67,9 +78,15 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                   </li>
                 ))}
               </ul>
-              <p className="tnum mt-3 border-t border-line pt-3 text-sm text-muted">
-                Deposit to confirm ({q.depositPct}%): <strong className="text-ink">{money(depositAmount(t.total, q.depositPct), q.currency)}</strong>
-              </p>
+              <div className="mt-3 border-t border-line pt-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-semibold">Total</span>
+                  <span className="tnum font-bold">{money(t.total, q.currency)}</span>
+                </div>
+                <p className="tnum mt-1 text-sm text-muted">
+                  Deposit to confirm ({q.depositPct}%): <strong className="text-ink">{money(depositAmount(t.total, q.depositPct), q.currency)}</strong>
+                </p>
+              </div>
             </section>
           );
         })}

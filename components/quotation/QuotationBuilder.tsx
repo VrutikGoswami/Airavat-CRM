@@ -6,6 +6,7 @@ import { Check, Plus, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { Field } from "@/components/forms/Field";
 import { sellingFromMarkup, depositAmount } from "@/lib/quotation";
+import { rateForCurrency } from "@/lib/fx";
 import { money, dateFromToday, formatDateRange } from "@/lib/format";
 import { QUOTATION_ITEM_LABELS } from "@/lib/labels";
 import type { Currency, QuotationItemType } from "@/lib/types";
@@ -131,6 +132,7 @@ export function QuotationBuilder() {
         travelEndDate: endDate,
         travellers: { adults, children, infants },
         currency,
+        exchangeRateToKes: rateForCurrency(currency),
         validUntil,
         createdById: currentUser.id,
         depositPct,
@@ -139,7 +141,7 @@ export function QuotationBuilder() {
         selectedOptionLabel: primaryLabel,
         status: statusSend,
       },
-      options: options.map((o) => ({ label: o.label, name: o.name, note: o.note || undefined })),
+      options: options.map((o) => ({ label: o.label, name: o.name, note: o.note || undefined, recommended: o.label === primaryLabel })),
       items: items.map((i) => ({
         optionLabel: i.optionLabel,
         type: i.type,

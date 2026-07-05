@@ -126,7 +126,7 @@ export default function PipelinePage() {
             <div className="flex gap-3" style={{ minWidth: "min-content" }}>
               {visibleStages.map((stage) => {
                 const cards = byStage(stage.id);
-                const value = cards.reduce((s, e) => s + e.estimatedValue, 0);
+                const value = cards.reduce((s, e) => s + ws.enquiryValueKes(e.id), 0);
                 return (
                   <div
                     key={stage.id}
@@ -206,15 +206,16 @@ function PipelineCard({
       <p className="mt-0.5 text-xs text-muted">{enquiry.destination}</p>
       <p className="mt-1 text-xs text-muted">{formatDateRange(enquiry.travelStartDate, enquiry.travelEndDate)}</p>
       <div className="mt-2 flex items-center justify-between">
-        <span className="tnum text-xs font-semibold">{shortMoney(enquiry.estimatedValue)}</span>
+        <span className="tnum text-xs font-semibold">{shortMoney(ws.enquiryValueKes(enquiry.id))}</span>
         <span className="text-[11px] text-muted">{travellersTotal(enquiry.travellers)} pax</span>
       </div>
       <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
         <WaitingOnPill waitingOn={enquiry.waitingOn} />
         <span title={consultant?.name}><Avatar initials={consultant?.initials ?? "?"} seed={consultant?.id} size={18} /></span>
       </div>
-      <p className={`mt-1.5 text-[11px] ${overdue ? "font-semibold text-warning" : "text-muted"}`}>
-        {overdue ? "Action overdue" : `Next: ${enquiry.nextActionLabel}`}
+      <p className="mt-1.5 text-[11px] text-muted">
+        <span>Next: {enquiry.nextActionLabel}</span>
+        {overdue ? <span className="ml-1 font-semibold text-warning">· overdue</span> : null}
       </p>
     </Link>
   );
