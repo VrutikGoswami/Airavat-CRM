@@ -1,27 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const AUTH_COOKIE = "crm_demo_user";
-const PUBLIC_PATHS = ["/login", "/share"];
-
 /**
- * Route protection. Unauthenticated users are sent to /login; signed-in users
- * hitting /login or / are sent to the dashboard. In production this pairs with
- * Supabase Auth session cookies (see README) — the guard logic is unchanged.
+ * ⚠️ TEMPORARY: authentication is DISABLED so the entire CRM is browsable
+ * without signing in (for review/demo access). The whole app defaults to the
+ * admin demo profile — see app/(app)/layout.tsx.
+ *
+ * TO RESTORE AUTH: revert this file and app/(app)/layout.tsx to the previous
+ * commit. The original guard sent unauthenticated users to /login and paired
+ * with Supabase Auth in production (see README).
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const signedIn = Boolean(request.cookies.get(AUTH_COOKIE)?.value);
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
+  // Send the bare root to a useful landing page; allow everything else through.
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(signedIn ? "/dashboard" : "/login", request.url));
-  }
-  if (!signedIn && !isPublic) {
-    const url = new URL("/login", request.url);
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-  if (signedIn && isPublic) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
   return NextResponse.next();
