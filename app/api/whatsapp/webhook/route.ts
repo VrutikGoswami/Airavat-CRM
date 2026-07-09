@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
+import { isSupabaseMode, getServiceSupabase } from "@/lib/supabase";
 
 /**
  * Meta WhatsApp Business Cloud API webhook.
@@ -63,6 +64,73 @@ function verifySignature(rawBody: string, signature: string | null): boolean {
   }
 }
 
+/**
+ * Persist an incoming WhatsApp message: upsert the conversation by phone
+ * number (opening the 24h reply window) and insert the message. Client inboxes
+ * update live via Supabase Realtime on the `conversations`/`messages` tables.
+ * No-op in demo mode.
+ */
+async function saveIncomingMessage(message: WhatsAppTextMessage): Promise<void> {
+  if (!isSupabaseMode()) return;
+  const db = getServiceSupabase();
+  if (!db) return;
+
+  const now = new Date();
+  const windowExpires = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: existing } = await db
+    .from("conversations")
+    .select("id, unread_count")
+    .eq("phone_number", message.from)
+    .maybeSingle();
+
+  let conversationId = existing?.id as string | undefined;
+  if (conversationId) {
+    await db
+      .from("conversations")
+      .update({
+        last_message_at: now.toISOString(),
+        window_expires_at: windowExpires,
+        unread_count: (existing?.unread_count ?? 0) + 1,
+      })
+      .eq("id", conversationId);
+  } else {
+    const { data: created, error } = await db
+      .from("conversations")
+      .insert({
+        phone_number: message.from,
+        last_message_at: now.toISOString(),
+        window_expires_at: windowExpires,
+        unread_count: 1,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      console.error("[whatsapp] conversation upsert failed", error);
+      return;
+    }
+    conversationId = created.id;
+  }
+
+  const { error: msgError } = await db.from("messages").insert({
+    conversation_id: conversationId,
+    direction: "in",
+    body: message.text?.body ?? null,
+    status: "received",
+    wa_message_id: message.id,
+  });
+  if (msgError) console.error("[whatsapp] message insert failed", msgError);
+}
+
+/** Update a sent message's delivery status by its WhatsApp message id. */
+async function updateMessageStatus(waMessageId: string, status: string): Promise<void> {
+  if (!isSupabaseMode()) return;
+  const db = getServiceSupabase();
+  if (!db) return;
+  const { error } = await db.from("messages").update({ status }).eq("wa_message_id", waMessageId);
+  if (error) console.error("[whatsapp] status update failed", error);
+}
+
 export async function POST(request: Request) {
   const raw = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
@@ -85,9 +153,7 @@ export async function POST(request: Request) {
       // 1. Incoming messages — save immediately, then acknowledge.
       for (const message of value?.messages ?? []) {
         const contact = value?.contacts?.find((c) => c.wa_id === message.from);
-        // TODO(production): upsert conversation + insert message into Supabase,
-        // then broadcast via Realtime so the inbox updates live. Send an
-        // instant template acknowledgement here — do NOT wait for AI.
+        await saveIncomingMessage(message);
         console.info("[whatsapp] incoming", {
           from: message.from,
           name: contact?.profile?.name,
@@ -98,7 +164,7 @@ export async function POST(request: Request) {
 
       // 2. Delivery / read status updates.
       for (const status of value?.statuses ?? []) {
-        // TODO(production): update the message row's delivery status.
+        await updateMessageStatus(status.id, status.status);
         console.info("[whatsapp] status", { id: status.id, status: status.status });
       }
     }

@@ -1,8 +1,11 @@
 import { Compass } from "lucide-react";
 import { createSeedData } from "@/lib/seed";
+import { isSupabaseMode, getServiceSupabase } from "@/lib/supabase";
+import { fetchShareQuotation } from "@/lib/db";
 import { optionTotals, depositAmount } from "@/lib/quotation";
 import { QUOTATION_ITEM_LABELS } from "@/lib/labels";
 import { money, formatDate, formatDateRange, travellersLabel } from "@/lib/format";
+import type { Customer, Quotation, QuotationItem, QuotationOption, User } from "@/lib/types";
 
 /**
  * Public, read-only quotation view reached by the private share link. No
@@ -11,8 +14,38 @@ import { money, formatDate, formatDateRange, travellersLabel } from "@/lib/forma
  */
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const seed = createSeedData();
-  const q = seed.quotations.find((x) => x.shareToken === token || x.id === token);
+
+  // Resolve the quotation, its options, items, customer and consultant either
+  // from the live database (production) or the in-memory demo data.
+  let q: Quotation | undefined;
+  let customer: Customer | undefined;
+  let consultant: User | undefined;
+  let options: QuotationOption[] = [];
+  let items: QuotationItem[] = [];
+
+  const supa = isSupabaseMode() ? getServiceSupabase() : null;
+  if (supa) {
+    const resolved = await fetchShareQuotation(supa, token).catch(() => null);
+    if (resolved) {
+      q = resolved.quotation;
+      customer = resolved.customer ?? undefined;
+      consultant = resolved.consultant ?? undefined;
+      // Only present options that actually have services — never an empty shell.
+      options = resolved.options.filter((o) => resolved.items.some((i) => i.optionId === o.id));
+      items = resolved.items;
+    }
+  } else {
+    const seed = createSeedData();
+    q = seed.quotations.find((x) => x.shareToken === token || x.id === token);
+    if (q) {
+      customer = seed.customers.find((c) => c.id === q!.customerId);
+      consultant = seed.users.find((u) => u.id === q!.createdById);
+      options = seed.quotationOptions
+        .filter((o) => o.quotationId === q!.id)
+        .filter((o) => seed.quotationItems.some((i) => i.optionId === o.id));
+      items = seed.quotationItems;
+    }
+  }
 
   if (!q) {
     return (
@@ -28,12 +61,6 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
     );
   }
 
-  const customer = seed.customers.find((c) => c.id === q.customerId);
-  const consultant = seed.users.find((u) => u.id === q.createdById);
-  // Only present options that actually have services — never an empty shell.
-  const options = seed.quotationOptions
-    .filter((o) => o.quotationId === q.id)
-    .filter((o) => seed.quotationItems.some((i) => i.optionId === o.id));
   const gridCols = options.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2";
 
   return (
@@ -57,8 +84,8 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       ) : null}
       <div className={`mt-3 grid items-start gap-4 ${gridCols}`}>
         {options.map((o) => {
-          const items = seed.quotationItems.filter((i) => i.optionId === o.id);
-          const t = optionTotals(items);
+          const optionItems = items.filter((i) => i.optionId === o.id);
+          const t = optionTotals(optionItems);
           return (
             <section
               key={o.id}
@@ -71,7 +98,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
               <h2 className="mt-2 font-semibold">{o.name}</h2>
               {o.note ? <p className="mt-1 text-sm text-muted">{o.note}</p> : null}
               <ul className="mt-3 flex-1 divide-y divide-line text-sm">
-                {items.map((i) => (
+                {optionItems.map((i) => (
                   <li key={i.id} className="flex justify-between gap-3 py-2">
                     <span>{QUOTATION_ITEM_LABELS[i.type]} — {i.description}</span>
                     <span className="tnum text-muted">{money(i.sellingPrice * i.quantity, q.currency)}</span>
