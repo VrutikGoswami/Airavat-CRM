@@ -38,6 +38,7 @@ type WebsiteRequirementPayload = {
   budget?: string;
   notes?: string;
   accessibility?: string;
+  dietary_needs?: string;
   service_details?: Record<string, unknown>;
   source?: {
     leadSource?: string;
@@ -53,17 +54,96 @@ type WebsiteRequirementPayload = {
 type RequirementRow = { label: string; value: string };
 
 const VALUE_LABELS: Record<string, string> = {
+  flight: "Flight booking",
+  hotel: "Hotel reservation",
   "tour_safari": "Tour / safari",
   "holiday_package": "Holiday package",
   "tented-camp": "Tented camp",
+  lodge: "Safari lodge",
+  conservancy: "Conservancy camp",
+  mixed: "A mix",
   "fly-in": "Fly-in",
   road: "Road",
   either: "Either",
+  value: "Value-conscious",
+  comfort: "Comfortable mid-range",
+  premium: "Premium",
+  "mid-range": "Mid-range",
+  any: "Open to suggestions",
+  yes: "Yes",
+  no: "No",
+  return: "Return",
+  "one-way": "One-way",
+  "multi-city": "Multi-city",
+  economy: "Economy",
+  "premium-economy": "Premium economy",
+  business: "Business",
+  first: "First",
+  "room-only": "Room only",
+  "bed-breakfast": "Bed & breakfast",
+  "half-board": "Half board",
+  "full-board": "Full board",
+  "all-inclusive": "All-inclusive",
   resident: "Resident",
+  "non-resident": "Non-resident",
   nonresident: "Non-resident",
-  "not-sure": "Not sure",
+  "under-100k": "Under KES 100,000",
+  "100k-300k": "KES 100,000 - 300,000",
+  "300k-700k": "KES 300,000 - 700,000",
+  "over-700k": "Over KES 700,000",
+  "not-sure": "Not sure yet",
   website: "Website",
 };
+
+const SERVICE_DETAIL_LABELS: Record<string, string> = {
+  tripType: "Trip type",
+  cabinClass: "Cabin class",
+  checkedBaggage: "Checked baggage",
+  preferredAirline: "Preferred airline",
+  baggageNotes: "Baggage notes",
+  rooms: "Rooms",
+  roomConfiguration: "Room configuration",
+  hotelCategory: "Hotel category",
+  mealPlan: "Meal plan",
+  preferredArea: "Preferred area",
+  accommodationCategory: "Accommodation",
+  roadOrFlyIn: "Access",
+  activities: "Activities",
+  residency: "Residency",
+  travelStyle: "Travel style",
+  specialOccasion: "Special occasion",
+  organisationName: "Organisation",
+  groupSize: "Group size",
+  travelPurpose: "Purpose",
+  departurePoints: "Departure points",
+  billingRequirements: "Billing requirements",
+  coordinationNotes: "Coordination requirements",
+};
+
+const SERVICE_DETAIL_ORDER = [
+  "tripType",
+  "cabinClass",
+  "checkedBaggage",
+  "preferredAirline",
+  "baggageNotes",
+  "rooms",
+  "roomConfiguration",
+  "hotelCategory",
+  "mealPlan",
+  "preferredArea",
+  "accommodationCategory",
+  "roadOrFlyIn",
+  "activities",
+  "residency",
+  "travelStyle",
+  "specialOccasion",
+  "organisationName",
+  "groupSize",
+  "travelPurpose",
+  "departurePoints",
+  "billingRequirements",
+  "coordinationNotes",
+];
 
 function titleCase(value: string): string {
   return value
@@ -76,6 +156,7 @@ function titleCase(value: string): string {
 function displayValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(displayValue).filter(Boolean).join(", ");
   if (typeof value !== "string") return "";
   return VALUE_LABELS[value] ?? titleCase(value);
 }
@@ -107,6 +188,18 @@ function websiteRequirementRows(payload: WebsiteRequirementPayload, enquiryRef: 
     details.transportRequired === true ? "Daily transport" : null,
   ].filter(Boolean).join(", ");
 
+  const serviceRows = Object.entries(details)
+    .filter(([key]) => !["includeFlights", "includeAccommodation", "includeTransfers", "transportRequired"].includes(key))
+    .sort(([a], [b]) => {
+      const aIndex = SERVICE_DETAIL_ORDER.indexOf(a);
+      const bIndex = SERVICE_DETAIL_ORDER.indexOf(b);
+      return (aIndex === -1 ? SERVICE_DETAIL_ORDER.length : aIndex) - (bIndex === -1 ? SERVICE_DETAIL_ORDER.length : bIndex);
+    })
+    .map(([key, value]) => ({
+      label: SERVICE_DETAIL_LABELS[key] ?? titleCase(key),
+      value: displayValue(value),
+    }));
+
   const rows: RequirementRow[] = [
     { label: "Reference", value: payload.reference || enquiryRef },
     { label: "Service", value: displayValue(payload.service) },
@@ -116,15 +209,13 @@ function websiteRequirementRows(payload: WebsiteRequirementPayload, enquiryRef: 
       value: `${formatDateRange(payload.departure_date ?? "", payload.return_date ?? "")}${payload.flexible_dates ? " (flexible)" : ""}`,
     },
     { label: "Travellers", value: travellers },
+    { label: "Children's ages", value: displayValue(payload.child_ages) },
     { label: "Budget", value: displayValue(payload.budget) },
-    { label: "Accommodation", value: displayValue(details.accommodationCategory) },
-    { label: "Access", value: displayValue(details.roadOrFlyIn) },
     { label: "Inclusions", value: inclusions },
-    { label: "Activities", value: displayValue(details.activities) },
-    { label: "Residency", value: displayValue(details.residency) },
-    { label: "Travel style", value: displayValue(details.travelStyle) },
+    ...serviceRows,
     { label: "Notes", value: displayValue(payload.notes) },
     { label: "Accessibility", value: displayValue(payload.accessibility) },
+    { label: "Dietary needs", value: displayValue(payload.dietary_needs) },
     { label: "Source", value: displayValue(payload.source?.leadSource) },
     { label: "Landing page", value: payload.source?.landingPage ?? "" },
   ];
