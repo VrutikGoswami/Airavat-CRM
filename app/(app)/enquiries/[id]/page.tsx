@@ -23,6 +23,138 @@ import {
 import { formatDateRange, money, relativeTime, travellersLabel } from "@/lib/format";
 import type { LostReason, PipelineStage, WaitingOn } from "@/lib/types";
 
+type WebsiteRequirementPayload = {
+  reference?: string;
+  service?: string;
+  origin?: string;
+  destination?: string;
+  departure_date?: string;
+  return_date?: string;
+  flexible_dates?: boolean;
+  adults?: number;
+  children?: number;
+  infants?: number;
+  child_ages?: unknown;
+  budget?: string;
+  notes?: string;
+  accessibility?: string;
+  service_details?: Record<string, unknown>;
+  source?: {
+    leadSource?: string;
+    landingPage?: string;
+    referrer?: string;
+    selectedDestination?: string;
+    selectedItinerary?: string;
+    selectedOffer?: string;
+    consentTimestamp?: string;
+  };
+};
+
+type RequirementRow = { label: string; value: string };
+
+const VALUE_LABELS: Record<string, string> = {
+  "tour_safari": "Tour / safari",
+  "holiday_package": "Holiday package",
+  "tented-camp": "Tented camp",
+  "fly-in": "Fly-in",
+  road: "Road",
+  either: "Either",
+  resident: "Resident",
+  nonresident: "Non-resident",
+  "not-sure": "Not sure",
+  website: "Website",
+};
+
+function titleCase(value: string): string {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function displayValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return String(value);
+  if (typeof value !== "string") return "";
+  return VALUE_LABELS[value] ?? titleCase(value);
+}
+
+function parseWebsiteRequirements(requirements: string): WebsiteRequirementPayload | null {
+  try {
+    const parsed = JSON.parse(requirements) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const payload = parsed as WebsiteRequirementPayload;
+    if (!payload.service && !payload.service_details && !payload.source) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function websiteRequirementRows(payload: WebsiteRequirementPayload, enquiryRef: string): RequirementRow[] {
+  const details = payload.service_details ?? {};
+  const travellers = travellersLabel({
+    adults: Number(payload.adults ?? 1),
+    children: Number(payload.children ?? 0),
+    infants: Number(payload.infants ?? 0),
+  });
+
+  const inclusions = [
+    details.includeFlights === true ? "Flights" : null,
+    details.includeAccommodation === true ? "Accommodation" : null,
+    details.includeTransfers === true ? "Transfers" : null,
+    details.transportRequired === true ? "Daily transport" : null,
+  ].filter(Boolean).join(", ");
+
+  const rows: RequirementRow[] = [
+    { label: "Reference", value: payload.reference || enquiryRef },
+    { label: "Service", value: displayValue(payload.service) },
+    { label: "Route", value: [payload.origin, payload.destination].filter(Boolean).join(" to ") },
+    {
+      label: "Travel dates",
+      value: `${formatDateRange(payload.departure_date ?? "", payload.return_date ?? "")}${payload.flexible_dates ? " (flexible)" : ""}`,
+    },
+    { label: "Travellers", value: travellers },
+    { label: "Budget", value: displayValue(payload.budget) },
+    { label: "Accommodation", value: displayValue(details.accommodationCategory) },
+    { label: "Access", value: displayValue(details.roadOrFlyIn) },
+    { label: "Inclusions", value: inclusions },
+    { label: "Activities", value: displayValue(details.activities) },
+    { label: "Residency", value: displayValue(details.residency) },
+    { label: "Travel style", value: displayValue(details.travelStyle) },
+    { label: "Notes", value: displayValue(payload.notes) },
+    { label: "Accessibility", value: displayValue(payload.accessibility) },
+    { label: "Source", value: displayValue(payload.source?.leadSource) },
+    { label: "Landing page", value: payload.source?.landingPage ?? "" },
+  ];
+
+  return rows.filter((row) => row.value && row.value !== "—");
+}
+
+function RequirementsDisplay({ requirements, enquiryRef }: { requirements: string; enquiryRef: string }) {
+  const payload = parseWebsiteRequirements(requirements);
+
+  if (!payload) {
+    return <dd className="mt-1 whitespace-pre-line text-sm leading-relaxed">{requirements}</dd>;
+  }
+
+  const rows = websiteRequirementRows(payload, enquiryRef);
+
+  return (
+    <dd className="mt-3">
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{row.label}</dt>
+            <dd className="mt-0.5 text-sm">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </dd>
+  );
+}
+
 export default function EnquiryPage() {
   const params = useParams<{ id: string }>();
   const ws = useWorkspace();
@@ -112,7 +244,7 @@ export default function EnquiryPage() {
             {enquiry.requirements ? (
               <div className="mt-4 border-t border-line pt-3">
                 <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Requirements</dt>
-                <dd className="mt-1 text-sm leading-relaxed">{enquiry.requirements}</dd>
+                <RequirementsDisplay requirements={enquiry.requirements} enquiryRef={enquiry.ref} />
               </div>
             ) : null}
           </div>
