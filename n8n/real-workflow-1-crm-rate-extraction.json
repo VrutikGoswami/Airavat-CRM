@@ -1,0 +1,321 @@
+{
+  "name": "REAL WORKFLOW 1 - CRM Supplier Rate Extraction v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "airavat-crm-supplier-rate-extraction",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "41000000-0000-4000-8000-000000000001",
+      "name": "Webhook - CRM Supplier Rate PDF",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        80
+      ],
+      "webhookId": "41000000-0000-4000-8000-000000000101",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_N8N_CRM_WEBHOOK_HEADER_CREDENTIAL_ID",
+          "name": "REPLACE_WITH_N8N_CRM_WEBHOOK_HEADER_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = items[0]?.json || {};\nconst payload = input.body && typeof input.body === 'object' ? input.body : input;\nconst documentId = String(payload.documentId || '').trim();\nconst fileName = String(payload.fileName || '').trim();\nconst downloadUrl = String(payload.downloadUrl || '').trim();\nconst callbackUrl = String(payload.callbackUrl || '').trim();\n\nif (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(documentId)) {\n  throw new Error('CRM request is missing a valid documentId.');\n}\nif (!fileName.toLowerCase().endsWith('.pdf')) {\n  throw new Error('CRM request fileName must end in .pdf.');\n}\nif (!/^https?:\\/\\//i.test(downloadUrl) || !/^https?:\\/\\//i.test(callbackUrl)) {\n  throw new Error('CRM request must include absolute downloadUrl and callbackUrl values.');\n}\n\nreturn [{\n  json: {\n    documentId,\n    fileName,\n    downloadUrl,\n    callbackUrl,\n    acceptedAt: new Date().toISOString(),\n  },\n}];"
+      },
+      "id": "41000000-0000-4000-8000-000000000002",
+      "name": "Code - Validate CRM Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.downloadUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "41000000-0000-4000-8000-000000000003",
+      "name": "HTTP - Download Private Supplier PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -640,
+        80
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const MAX_PDF_BYTES = 18 * 1024 * 1024;\nconst GEMINI_MODEL = 'gemini-3.5-flash';\n\nconst nullableString = (description) => ({ type: 'STRING', nullable: true, description });\nconst nullableInteger = (description) => ({ type: 'INTEGER', nullable: true, description });\nconst nullableNumber = (description) => ({ type: 'NUMBER', nullable: true, description });\n\nconst rateSchema = {\n  type: 'OBJECT',\n  properties: {\n    rate_type: {\n      type: 'STRING',\n      enum: ['Accommodation', 'Child', 'Extra Bed', 'Meal Supplement', 'Mandatory Supplement', 'Package', 'Other'],\n      description: 'Commercial purpose of this exact price row.',\n    },\n    season_name: { type: 'STRING', description: 'Printed season or period label, or empty string.' },\n    valid_from: nullableString('Start date in YYYY-MM-DD, or null only if not stated.'),\n    valid_to: nullableString('End date in YYYY-MM-DD, or null only if not stated.'),\n    booking_by: nullableString('Book-by deadline in YYYY-MM-DD, or null.'),\n    blackout_dates: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Explicit blackout dates or ranges.' },\n    room_type: { type: 'STRING', description: 'Exact room/category, or N/A for a general supplement.' },\n    meal_plan: { type: 'STRING', description: 'Meal plan such as RO, BB, HB, FB, AI, or Not Stated.' },\n    occupancy: { type: 'STRING', description: 'Printed occupancy such as SGL, DBL, PPS, TRPL, or a child age band.' },\n    adults: nullableInteger('Adults represented by this price when explicit.'),\n    children: nullableInteger('Children represented by this price when explicit.'),\n    amount: nullableNumber('Exact numeric supplier amount without symbols or separators.'),\n    currency: { type: 'STRING', description: 'Three-letter currency for this row, or empty to use the document default.' },\n    market: { type: 'STRING', description: 'Market or residency restriction, or empty to use the document default.' },\n    rate_basis: {\n      type: 'STRING',\n      enum: ['Per Room Per Night', 'Per Person Per Night', 'Per Person Sharing Per Night', 'Per Child Per Night', 'Per Person Per Stay', 'Per Room Per Stay', 'Package Total', 'Flat Amount', 'Other'],\n      description: 'The unit to which the exact amount applies.',\n    },\n    minimum_stay: nullableInteger('Minimum nights when explicit.'),\n    tax_included: { type: 'STRING', enum: ['Yes', 'No', 'Unknown'] },\n    commission_included: { type: 'STRING', enum: ['Yes', 'No', 'Unknown'] },\n    conditions: { type: 'STRING', description: 'Restrictions specific to this exact row.' },\n    source_page: nullableInteger('One-based page containing this exact price.'),\n    confidence: { type: 'STRING', enum: ['High', 'Medium', 'Low'] },\n  },\n  required: [\n    'rate_type', 'season_name', 'valid_from', 'valid_to', 'booking_by', 'blackout_dates',\n    'room_type', 'meal_plan', 'occupancy', 'adults', 'children', 'amount', 'currency',\n    'market', 'rate_basis', 'minimum_stay', 'tax_included', 'commission_included',\n    'conditions', 'source_page', 'confidence',\n  ],\n};\n\nconst hotelSchema = {\n  type: 'OBJECT',\n  properties: {\n    hotel_name: { type: 'STRING', description: 'Official hotel/property name printed in the PDF.' },\n    destination: { type: 'STRING', description: 'Tourism destination or area.' },\n    city: { type: 'STRING', description: 'City or town when stated, otherwise empty.' },\n    country: { type: 'STRING', description: 'Country when stated or explicit, otherwise empty.' },\n    star_rating: nullableNumber('Printed star rating, otherwise null.'),\n    child_policy: { type: 'STRING', description: 'Child policy and age bands without invented details.' },\n    cancellation_policy: { type: 'STRING', description: 'Cancellation and no-show terms.' },\n    payment_terms: { type: 'STRING', description: 'Deposit and payment terms.' },\n    tax_notes: { type: 'STRING', description: 'Taxes, levies, inclusions, and exclusions.' },\n    rates: { type: 'ARRAY', items: rateSchema },\n  },\n  required: [\n    'hotel_name', 'destination', 'city', 'country', 'star_rating', 'child_policy',\n    'cancellation_policy', 'payment_terms', 'tax_notes', 'rates',\n  ],\n};\n\nconst schema = {\n  type: 'OBJECT',\n  properties: {\n    document: {\n      type: 'OBJECT',\n      properties: {\n        document_type: { type: 'STRING', enum: ['Rate Sheet', 'Contract', 'Special Offer', 'Supplement', 'Brochure', 'Other'] },\n        is_rate_sheet: { type: 'BOOLEAN' },\n        supplier_name: { type: 'STRING', description: 'Supplier, DMC, hotel group, or wholesaler issuing the rates.' },\n        contract_name: { type: 'STRING', description: 'Printed document title or contract name.' },\n        pricing_basis: {\n          type: 'STRING',\n          enum: ['unknown', 'rack', 'net'],\n          description: 'net only when the document explicitly says net/non-commissionable/buying rates; rack only when it explicitly says rack/public/selling rates; otherwise unknown.',\n        },\n        default_market: { type: 'STRING', description: 'Default residency or market restriction.' },\n        default_currency: { type: 'STRING', description: 'Three-letter default currency, or empty if unclear.' },\n        issued_date: nullableString('Issue date in YYYY-MM-DD, or null.'),\n        overall_valid_from: nullableString('Document-wide validity start in YYYY-MM-DD, or null.'),\n        overall_valid_to: nullableString('Document-wide validity end in YYYY-MM-DD, or null.'),\n        summary: { type: 'STRING', description: 'Short factual description of the commercial content.' },\n        confidence: { type: 'STRING', enum: ['High', 'Medium', 'Low'] },\n      },\n      required: [\n        'document_type', 'is_rate_sheet', 'supplier_name', 'contract_name', 'pricing_basis',\n        'default_market', 'default_currency', 'issued_date', 'overall_valid_from',\n        'overall_valid_to', 'summary', 'confidence',\n      ],\n    },\n    hotels: { type: 'ARRAY', items: hotelSchema },\n    warnings: { type: 'ARRAY', items: { type: 'STRING' } },\n  },\n  required: ['document', 'hotels', 'warnings'],\n};\n\nconst prompt = [\n  'You extract supplier hotel rates for Airavat Tours and Travel Ltd.',\n  'Read the complete PDF, including scanned text, every table, repeated headers, and footnotes.',\n  '',\n  'NON-NEGOTIABLE RULES:',\n  '- Never invent or estimate a price, date, currency, hotel, room, occupancy, policy, tax, market, or price basis.',\n  '- Copy supplier amounts exactly. Do not add markup, convert currency, calculate totals, or infer availability.',\n  '- Expand every matrix into one row per hotel + printed date range + room + meal plan + occupancy + amount.',\n  '- A room with different prices in different date ranges MUST produce separate rows. Never merge ranges or average prices.',\n  '- Never combine different seasons, occupancies, currencies, markets, or rate bases into one row.',\n  '- Create separate rows for child rates, extra beds, meals, mandatory festive supplements, and packages.',\n  '- Use a document-wide date only when the PDF clearly states that it applies to every relevant row.',\n  '- Structured dates must be YYYY-MM-DD. Put ambiguous or non-convertible dates in warnings.',\n  '- Preserve East African resident, resident, non-resident, and all other market restrictions.',\n  '- Determine pricing_basis only from explicit wording. Return unknown when it is not stated.',\n  '- Page numbers are one-based. Cite the page containing each exact price whenever visible.',\n  '- If there are no commercially usable rates, set is_rate_sheet false and return empty hotel rate arrays.',\n  '- Return only JSON matching the supplied schema.',\n].join('\\n');\n\nconst source = $items('Code - Validate CRM Request')[0]?.json || {};\nlet buffer = Buffer.alloc(0);\nlet preflightError = '';\n\ntry {\n  buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n} catch (error) {\n  const downloadError = items[0]?.json?.error;\n  preflightError = downloadError?.message || downloadError || ('The signed PDF download failed: ' + error.message);\n}\n\nif (!preflightError && buffer.length === 0) preflightError = 'The downloaded supplier PDF is empty.';\nif (!preflightError && buffer.length > MAX_PDF_BYTES) preflightError = 'The supplier PDF exceeds the 18 MiB extraction limit.';\nif (!preflightError && !buffer.subarray(0, Math.min(buffer.length, 1024)).toString('latin1').includes('%PDF-')) {\n  preflightError = 'The downloaded file does not have a valid PDF signature.';\n}\n\nconst requestReady = !preflightError;\nconst geminiRequestBody = requestReady ? {\n  contents: [{\n    role: 'user',\n    parts: [\n      { inlineData: { mimeType: 'application/pdf', data: buffer.toString('base64') } },\n      { text: prompt },\n    ],\n  }],\n  generationConfig: {\n    temperature: 0,\n    maxOutputTokens: 65536,\n    responseMimeType: 'application/json',\n    responseSchema: schema,\n  },\n} : null;\n\nreturn [{\n  json: {\n    ...source,\n    geminiModel: GEMINI_MODEL,\n    actualSize: buffer.length,\n    requestReady,\n    preflightError,\n    geminiRequestBody,\n  },\n}];"
+      },
+      "id": "41000000-0000-4000-8000-000000000004",
+      "name": "Code - Build Gemini Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.requestReady }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "41000000-0000-4000-8000-000000000005",
+      "name": "IF - PDF Is Ready For Gemini",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/' + $json.geminiModel + ':generateContent' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.geminiRequestBody }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "41000000-0000-4000-8000-000000000006",
+      "name": "Gemini - Extract Structured Supplier Rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        0
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_N8N_GEMINI_HEADER_CREDENTIAL_ID",
+          "name": "REPLACE_WITH_N8N_GEMINI_HEADER_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function firstText(response) {\n  const parts = response?.candidates?.[0]?.content?.parts || [];\n  return parts.map((part) => typeof part?.text === 'string' ? part.text : '').join('').trim();\n}\n\nfunction apiError(response) {\n  const error = response?.error;\n  if (!error) return '';\n  if (typeof error === 'string') return error;\n  return String(error.message || JSON.stringify(error));\n}\n\nconst source = $items('Code - Build Gemini Request')[0]?.json || {};\nconst response = items[0]?.json || {};\nlet extraction = null;\nlet errorMessage = apiError(response);\n\ntry {\n  if (errorMessage) throw new Error(errorMessage);\n  let text = firstText(response);\n  if (!text) throw new Error('Gemini returned no structured text response.');\n  const fence = String.fromCharCode(96).repeat(3);\n  if (text.startsWith(fence)) text = text.slice(fence.length).replace(/^json\\s*/i, '');\n  if (text.endsWith(fence)) text = text.slice(0, -fence.length);\n  extraction = JSON.parse(text.trim());\n  if (!extraction?.document || !Array.isArray(extraction?.hotels) || !Array.isArray(extraction?.warnings)) {\n    throw new Error('Gemini JSON is missing document, hotels, or warnings.');\n  }\n} catch (error) {\n  extraction = null;\n  errorMessage = error.message;\n}\n\nreturn [{\n  json: {\n    documentId: source.documentId,\n    callbackUrl: source.callbackUrl,\n    callbackBody: extraction ? {\n      documentId: source.documentId,\n      status: 'completed',\n      model: source.geminiModel,\n      extraction,\n    } : {\n      documentId: source.documentId,\n      status: 'error',\n      model: source.geminiModel,\n      errorMessage,\n    },\n  },\n}];"
+      },
+      "id": "41000000-0000-4000-8000-000000000007",
+      "name": "Code - Prepare Gemini Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = items[0]?.json || {};\nreturn [{\n  json: {\n    documentId: source.documentId,\n    callbackUrl: source.callbackUrl,\n    callbackBody: {\n      documentId: source.documentId,\n      status: 'error',\n      model: source.geminiModel,\n      errorMessage: source.preflightError || 'The supplier PDF failed extraction preflight.',\n    },\n  },\n}];"
+      },
+      "id": "41000000-0000-4000-8000-000000000008",
+      "name": "Code - Prepare Preflight Error Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.callbackBody }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "41000000-0000-4000-8000-000000000009",
+      "name": "HTTP - Return Extraction To CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_N8N_CRM_CALLBACK_HEADER_CREDENTIAL_ID",
+          "name": "REPLACE_WITH_N8N_CRM_CALLBACK_HEADER_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Configure credentials\n\nInbound Header Auth: Authorization = Bearer N8N_RATE_WEBHOOK_SECRET. Gemini Header Auth: x-goog-api-key. Callback Header Auth: Authorization = Bearer N8N_RATE_CALLBACK_SECRET.",
+        "height": 260,
+        "width": 430
+      },
+      "id": "41000000-0000-4000-8000-000000000010",
+      "name": "Sticky Note - Required Credentials",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Publication boundary\n\nThis workflow extracts only. It cannot activate rates. The CRM callback stages inactive rows; an administrator must review and publish them before the website can use them.",
+        "height": 220,
+        "width": 430,
+        "color": 5
+      },
+      "id": "41000000-0000-4000-8000-000000000011",
+      "name": "Sticky Note - Human Approval Required",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - CRM Supplier Rate PDF": {
+      "main": [
+        [
+          {
+            "node": "Code - Validate CRM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Validate CRM Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Download Private Supplier PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Download Private Supplier PDF": {
+      "main": [
+        [
+          {
+            "node": "Code - Build Gemini Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build Gemini Request": {
+      "main": [
+        [
+          {
+            "node": "IF - PDF Is Ready For Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - PDF Is Ready For Gemini": {
+      "main": [
+        [
+          {
+            "node": "Gemini - Extract Structured Supplier Rates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Prepare Preflight Error Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Extract Structured Supplier Rates": {
+      "main": [
+        [
+          {
+            "node": "Code - Prepare Gemini Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Prepare Gemini Callback": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Return Extraction To CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Prepare Preflight Error Callback": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Return Extraction To CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Nairobi",
+    "saveManualExecutions": true
+  },
+  "versionId": "41000000-0000-4000-8000-000000000100",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -60,7 +60,7 @@ different random values for the two webhook directions.
 
 ## n8n Setup
 
-Import `n8n-workflows/real-workflow-1-crm-rate-extraction.json`, then configure:
+Import `n8n/real-workflow-1-crm-rate-extraction.json`, then configure:
 
 - The webhook Header Auth credential with `Authorization: Bearer
   <N8N_RATE_WEBHOOK_SECRET>`.
