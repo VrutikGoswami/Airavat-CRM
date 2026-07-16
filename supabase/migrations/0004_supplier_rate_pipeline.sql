@@ -25,6 +25,56 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
+-- Keep this migration safe on CRM projects that were created before the RLS
+-- helper migration was introduced. These definitions match 0001/0002 and are
+-- intentionally schema-qualified so Storage policies can resolve them too.
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function public.is_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.users u
+    where u.id = auth.uid()
+      and u.active = true
+  );
+$$;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.users u
+    where u.id = auth.uid()
+      and u.role = 'admin'
+      and u.active = true
+  );
+$$;
+
+revoke all on function public.is_staff() from public;
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_staff() to authenticated, service_role;
+grant execute on function public.is_admin() to authenticated, service_role;
+
 create table if not exists rate_documents (
   id                    uuid primary key default gen_random_uuid(),
   file_name             text not null,
@@ -127,17 +177,17 @@ create index if not exists hotel_rate_rows_document_idx
 drop trigger if exists rate_documents_updated on rate_documents;
 create trigger rate_documents_updated
   before update on rate_documents
-  for each row execute function set_updated_at();
+  for each row execute function public.set_updated_at();
 
 drop trigger if exists rate_hotels_updated on rate_hotels;
 create trigger rate_hotels_updated
   before update on rate_hotels
-  for each row execute function set_updated_at();
+  for each row execute function public.set_updated_at();
 
 drop trigger if exists hotel_rate_rows_updated on hotel_rate_rows;
 create trigger hotel_rate_rows_updated
   before update on hotel_rate_rows
-  for each row execute function set_updated_at();
+  for each row execute function public.set_updated_at();
 
 -- Private supplier-document bucket. The application service role performs the
 -- upload; staff can download a source PDF for review through authenticated RLS.
@@ -160,20 +210,20 @@ alter table hotel_rate_rows enable row level security;
 
 drop policy if exists rate_documents_staff_all on rate_documents;
 create policy rate_documents_staff_all on rate_documents
-  for all to authenticated using (is_staff()) with check (is_staff());
+  for all to authenticated using (public.is_staff()) with check (public.is_staff());
 
 drop policy if exists rate_hotels_staff_all on rate_hotels;
 create policy rate_hotels_staff_all on rate_hotels
-  for all to authenticated using (is_staff()) with check (is_staff());
+  for all to authenticated using (public.is_staff()) with check (public.is_staff());
 
 drop policy if exists hotel_rate_rows_staff_all on hotel_rate_rows;
 create policy hotel_rate_rows_staff_all on hotel_rate_rows
-  for all to authenticated using (is_staff()) with check (is_staff());
+  for all to authenticated using (public.is_staff()) with check (public.is_staff());
 
 drop policy if exists supplier_rate_documents_staff_read on storage.objects;
 create policy supplier_rate_documents_staff_read on storage.objects
   for select to authenticated
-  using (bucket_id = 'supplier-rate-documents' and is_staff());
+  using (bucket_id = 'supplier-rate-documents' and public.is_staff());
 
 -- Atomically replace an extraction attempt. Only the server-side service role
 -- receives EXECUTE; n8n calls the CRM callback rather than writing tables.
@@ -323,7 +373,7 @@ declare
   v_status rate_document_status;
   v_publishable int;
 begin
-  if not is_admin() then
+  if not public.is_admin() then
     raise exception 'Administrator access is required';
   end if;
 
@@ -402,7 +452,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if not is_admin() then
+  if not public.is_admin() then
     raise exception 'Administrator access is required';
   end if;
 
