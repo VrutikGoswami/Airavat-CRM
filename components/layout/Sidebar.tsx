@@ -14,6 +14,7 @@ import {
   Settings,
   Users,
   FileText,
+  BadgeDollarSign,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { useCreateModals } from "@/components/forms/CreateModals";
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/quotations", label: "Quotations", icon: FileText },
+  { href: "/rates", label: "Supplier Rates", icon: BadgeDollarSign },
   { href: "/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
@@ -114,7 +116,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <p className="px-4 py-3 text-[11px] text-[#8fa392]">Demo workspace · sample data</p>
+      <p className="px-4 py-3 text-[11px] text-[#8fa392]">Airavat staff workspace</p>
     </div>
   );
 }

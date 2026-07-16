@@ -7,6 +7,7 @@
  * Both return null when env is unset so the app degrades to demo mode instead
  * of crashing. Wire real queries behind `NEXT_PUBLIC_DATA_MODE=supabase`.
  */
+import { createBrowserClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let browserClient: SupabaseClient | null = null;
@@ -23,7 +24,7 @@ export function getBrowserSupabase(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!configured(url) || !configured(key)) return null;
-  if (!browserClient) browserClient = createClient(url, key);
+  if (!browserClient) browserClient = createBrowserClient(url, key);
   return browserClient;
 }
 

@@ -70,6 +70,8 @@ npm run typecheck  # tsc --noEmit
 - **Reports** — conversion rate, quotation acceptance, confirmed value, gross
   profit, enquiries by source, lost reasons, outstanding balances, consultant
   workload; filter by consultant.
+- **Supplier rates** — private PDF upload, AI extraction status, row-by-row
+  review, date-range preservation, and administrator-only website publishing.
 - **Settings** — company info, quotation defaults, staff access (admin-only edit).
 
 Responsive throughout: the sidebar becomes a drawer, tables scroll, the pipeline
@@ -118,8 +120,8 @@ change. `NEXT_PUBLIC_DATA_MODE=supabase` is the intended switch.
 ## Going live with Supabase
 
 1. Create a Supabase project.
-2. Run the migrations (SQL editor or `supabase db push`):
-   `supabase/migrations/0001_schema.sql`, then `0002_rls.sql`.
+2. Run every migration in numeric order through
+   `supabase/migrations/0004_supplier_rate_pipeline.sql`.
 3. Create staff via **Auth → Users**, then insert matching rows into
    `public.users` (see the header of `supabase/seed.sql`). Set one to `admin`.
 4. Optionally load `supabase/seed.sql` for sample business data.
@@ -128,6 +130,9 @@ change. `NEXT_PUBLIC_DATA_MODE=supabase` is the intended switch.
 6. RLS is on for every table: only active staff (`is_staff()`) can read/write
    business data; admins manage `users`. Tighten to per-consultant ownership by
    editing `0002_rls.sql`.
+
+The supplier-rate upload, extraction, review, and publishing setup is documented
+in [`SUPPLIER_RATE_PIPELINE.md`](SUPPLIER_RATE_PIPELINE.md).
 
 ---
 
