@@ -72,6 +72,8 @@ npm run typecheck  # tsc --noEmit
   workload; filter by consultant.
 - **Supplier rates** — private PDF upload, AI extraction status, row-by-row
   review, date-range preservation, and administrator-only website publishing.
+- **Flight Finder** — enquiry-prefilled Amadeus fare search, internal agent
+  cost and margin, three ranked options, and one-click draft quotation creation.
 - **Settings** — company info, quotation defaults, staff access (admin-only edit).
 
 Responsive throughout: the sidebar becomes a drawer, tables scroll, the pipeline

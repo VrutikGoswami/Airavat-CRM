@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { CheckSquare, FileText, StickyNote, XCircle } from "lucide-react";
+import { CheckSquare, FileText, Plane, StickyNote, XCircle } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
@@ -303,6 +303,9 @@ export default function EnquiryPage() {
         {/* Actions */}
         {enquiry.status === "open" ? (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
+            <Link className="btn btn-primary hover:btn-primary-hover" href={`/flights?enquiry=${enquiry.id}`}>
+              <Plane className="size-4" aria-hidden /> Find flights
+            </Link>
             <button className="btn btn-primary hover:btn-primary-hover" onClick={() => openCreate("quotation", enquiry.customerId)}>
               <FileText className="size-4" aria-hidden /> Build quotation
             </button>
