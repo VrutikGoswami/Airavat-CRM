@@ -5,18 +5,14 @@ import Image from "next/image";
 import { Suspense, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { demoUsers } from "@/lib/staff";
-import { getBrowserSupabase, isSupabaseMode } from "@/lib/supabase";
 import { Avatar } from "@/components/ui/Avatar";
 
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
   const users = demoUsers();
-  const production = isSupabaseMode();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
 
   const signIn = async (userId: string) => {
     setBusy(userId);
@@ -33,24 +29,6 @@ function LoginInner() {
       router.refresh();
     } catch {
       setError("Could not sign in. Please try again.");
-      setBusy(null);
-    }
-  };
-
-  const signInWithPassword = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy("production");
-    setError(null);
-    try {
-      const supabase = getBrowserSupabase();
-      if (!supabase) throw new Error("Supabase is not configured.");
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-      if (authError) throw authError;
-      const next = params.get("next");
-      router.replace(next && next.startsWith("/") ? next : "/dashboard");
-      router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not sign in.");
       setBusy(null);
     }
   };
@@ -73,77 +51,39 @@ function LoginInner() {
         <div className="card p-6 sm:p-8">
           <h1 className="text-xl font-bold">Sign in</h1>
           <p className="mt-1 text-sm text-muted">
-            {production
-              ? "Use your Airavat staff account."
-              : "Choose a demo profile to explore the workspace."}
+            Authorization is disabled for local testing. Choose a profile only to set the staff context.
           </p>
 
-          {production ? (
-            <form onSubmit={signInWithPassword} className="mt-6 space-y-4">
-              <label className="block">
-                <span className="field-label">Email address</span>
-                <input
-                  className="input"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              </label>
-              <label className="block">
-                <span className="field-label">Password</span>
-                <input
-                  className="input"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </label>
+          <div className="mt-6 space-y-2">
+            {users.map((u) => (
               <button
-                type="submit"
-                className="btn btn-primary w-full"
+                key={u.id}
+                type="button"
+                onClick={() => signIn(u.id)}
                 disabled={busy !== null}
+                className="row-hover flex w-full items-center gap-3 rounded-[10px] border border-line p-3 text-left disabled:opacity-60"
               >
-                {busy === "production" ? "Signing in..." : "Sign in"}
-              </button>
-            </form>
-          ) : (
-            <div className="mt-6 space-y-2">
-              {users.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => signIn(u.id)}
-                  disabled={busy !== null}
-                  className="row-hover flex w-full items-center gap-3 rounded-[10px] border border-line p-3 text-left disabled:opacity-60"
-                >
-                  <Avatar initials={u.initials} seed={u.id} size={40} />
-                  <span className="flex-1">
-                    <span className="block font-semibold">{u.name}</span>
-                    <span className="block text-xs text-muted">
-                      {u.role === "admin" ? "Founder / Administrator" : "Travel Consultant"} · {u.email}
-                    </span>
+                <Avatar initials={u.initials} seed={u.id} size={40} />
+                <span className="flex-1">
+                  <span className="block font-semibold">{u.name}</span>
+                  <span className="block text-xs text-muted">
+                    {u.role === "admin" ? "Founder / Administrator" : "Travel Consultant"} · {u.email}
                   </span>
-                  {busy === u.id ? (
-                    <span className="text-xs text-muted">Signing in...</span>
-                  ) : (
-                    <span className="text-xs font-semibold text-terracotta">Sign in</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+                </span>
+                {busy === u.id ? (
+                  <span className="text-xs text-muted">Opening...</span>
+                ) : (
+                  <span className="text-xs font-semibold text-terracotta">Open</span>
+                )}
+              </button>
+            ))}
+          </div>
 
           {error ? <p className="mt-4 text-sm font-semibold text-error">{error}</p> : null}
 
           <p className="mt-6 flex items-center gap-2 text-xs text-muted">
             <ShieldCheck className="size-4" aria-hidden />
-            {production
-              ? "Protected by Supabase authentication and row-level security."
-              : "Demo mode - sample data only, no real customer information."}
+            No password is required in this testing build.
           </p>
         </div>
       </div>

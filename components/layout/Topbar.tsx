@@ -23,9 +23,9 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
     router.refresh();
   };
 
-  const logout = async () => {
+  const clearProfile = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/dashboard");
     router.refresh();
   };
 
@@ -98,10 +98,10 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             <button
               type="button"
               role="menuitem"
-              onClick={logout}
+              onClick={clearProfile}
               className="row-hover flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-error"
             >
-              <LogOut className="size-4" aria-hidden /> Sign out
+              <LogOut className="size-4" aria-hidden /> Clear profile
             </button>
           </div>
         ) : null}

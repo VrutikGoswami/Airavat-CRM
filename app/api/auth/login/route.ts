@@ -3,12 +3,6 @@ import { AUTH_COOKIE, findUser } from "@/lib/staff";
 
 /** Demo sign-in: stores the chosen staff id in an httpOnly cookie. */
 export async function POST(request: Request) {
-  if (process.env.NEXT_PUBLIC_DATA_MODE === "supabase") {
-    return NextResponse.json(
-      { error: "Use Supabase email authentication in production mode." },
-      { status: 400 },
-    );
-  }
   const body = (await request.json().catch(() => null)) as { userId?: string } | null;
   const user = body?.userId ? findUser(body.userId) : undefined;
   if (!user) {
