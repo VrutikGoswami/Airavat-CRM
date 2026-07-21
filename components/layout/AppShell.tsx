@@ -13,7 +13,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <CreateModalsProvider>
       <div className="flex min-h-svh">
         {/* Desktop sidebar */}
-        <aside className="fixed inset-y-0 left-0 hidden w-60 lg:block">
+        <aside className="fixed inset-y-0 left-0 hidden w-60 lg:block print:!hidden">
           <Sidebar />
         </aside>
 
@@ -40,9 +40,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : null}
 
         {/* Main column */}
-        <div className="flex min-w-0 flex-1 flex-col lg:ml-60">
-          <Topbar onOpenMenu={() => setDrawerOpen(true)} />
-          <main className="min-w-0 flex-1 px-3 py-5 sm:px-5 lg:px-7 lg:py-7">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col lg:ml-60 print:ml-0">
+          <div className="print:hidden">
+            <Topbar onOpenMenu={() => setDrawerOpen(true)} />
+          </div>
+          <main className="min-w-0 flex-1 px-3 py-5 sm:px-5 lg:px-7 lg:py-7 print:p-0">{children}</main>
         </div>
       </div>
     </CreateModalsProvider>

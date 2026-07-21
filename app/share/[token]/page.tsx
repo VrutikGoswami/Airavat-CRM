@@ -2,7 +2,7 @@ import { Compass } from "lucide-react";
 import { createSeedData } from "@/lib/seed";
 import { isSupabaseMode, getServiceSupabase } from "@/lib/supabase";
 import { fetchShareQuotation } from "@/lib/db";
-import { optionTotals, depositAmount } from "@/lib/quotation";
+import { optionTotals, depositAmount, optionBadges, OPTION_BADGE_LABELS } from "@/lib/quotation";
 import { QUOTATION_ITEM_LABELS } from "@/lib/labels";
 import { money, formatDate, formatDateRange, travellersLabel } from "@/lib/format";
 import type { Customer, Quotation, QuotationItem, QuotationOption, User } from "@/lib/types";
@@ -62,6 +62,8 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   }
 
   const gridCols = options.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2";
+  const itemsFor = (id: string) => items.filter((i) => i.optionId === id);
+  const badges = optionBadges(options, (id) => optionTotals(itemsFor(id)).total, itemsFor);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
@@ -93,7 +95,13 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="badge badge-info">Option {o.label}</span>
-                {o.recommended ? <span className="text-xs font-semibold text-terracotta">Recommended</span> : null}
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {(badges.get(o.id) ?? []).map((b) => (
+                    <span key={b} className="text-xs font-semibold text-terracotta">
+                      {OPTION_BADGE_LABELS[b]}
+                    </span>
+                  ))}
+                </div>
               </div>
               <h2 className="mt-2 font-semibold">{o.name}</h2>
               {o.note ? <p className="mt-1 text-sm text-muted">{o.note}</p> : null}

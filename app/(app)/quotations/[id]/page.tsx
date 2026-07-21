@@ -8,9 +8,10 @@ import { useWorkspace } from "@/lib/workspace";
 import { EmptyState } from "@/components/ui/misc";
 import { QuotationStatusBadge } from "@/components/ui/chips";
 import { WhatsAppLink } from "@/components/ui/WhatsAppLink";
-import { optionTotals, depositAmount } from "@/lib/quotation";
+import { optionTotals, depositAmount, optionBadges, OPTION_BADGE_LABELS } from "@/lib/quotation";
 import { QUOTATION_ITEM_LABELS } from "@/lib/labels";
 import { money, formatDate, formatDateRange, travellersLabel } from "@/lib/format";
+import { QuotationDocument } from "@/components/quotation/QuotationDocument";
 
 export default function QuotationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -34,6 +35,11 @@ export default function QuotationDetailPage() {
   const primaryTotals = primaryOption ? optionTotals(ws.itemsForOption(primaryOption.id)) : null;
   const primaryTotal = primaryTotals?.total ?? 0;
   const valueKes = ws.quotationValueKes(q.id);
+  const badges = optionBadges(
+    options,
+    (id) => optionTotals(ws.itemsForOption(id)).total,
+    (id) => ws.itemsForOption(id),
+  );
 
   const copyLink = async () => {
     try {
@@ -53,7 +59,8 @@ export default function QuotationDetailPage() {
   const waMessage = `Hello ${customer?.name.split(" ")[0] ?? ""}, here is your quotation ${q.ref} for ${q.destination}: ${shareUrl}`;
 
   return (
-    <div className="space-y-5">
+    <>
+    <div className="space-y-5 print:hidden">
       <Link href="/quotations" className="text-sm text-muted hover:text-terracotta">← Quotations</Link>
 
       <div className="card p-5">
@@ -113,13 +120,18 @@ export default function QuotationDetailPage() {
           const isSel = o.label === selected;
           return (
             <div key={o.id} className={`card p-5 ${isSel ? "ring-2 ring-terracotta" : ""}`}>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="badge badge-info">Option {o.label}</span>
-                {o.recommended ? (
-                  <span className="text-xs font-semibold text-terracotta">Recommended</span>
-                ) : o.label === q.selectedOptionLabel ? (
-                  <span className="text-xs font-semibold text-terracotta">Selected</span>
-                ) : null}
+                <div className="flex flex-wrap justify-end gap-1">
+                  {(badges.get(o.id) ?? []).map((b) => (
+                    <span key={b} className="text-xs font-semibold text-terracotta">
+                      {OPTION_BADGE_LABELS[b]}
+                    </span>
+                  ))}
+                  {!o.recommended && o.label === q.selectedOptionLabel ? (
+                    <span className="text-xs font-semibold text-terracotta">Selected</span>
+                  ) : null}
+                </div>
               </div>
               <h3 className="mt-2 font-semibold">{o.name}</h3>
               {o.note ? <p className="mt-1 text-xs text-muted">{o.note}</p> : null}
@@ -209,5 +221,15 @@ export default function QuotationDetailPage() {
         </div>
       </div>
     </div>
+
+    {/* Print-only proper quotation document (window.print / Generate PDF). */}
+    <QuotationDocument
+      q={q}
+      customer={customer}
+      consultant={consultant}
+      options={options}
+      itemsFor={(id) => ws.itemsForOption(id)}
+    />
+    </>
   );
 }

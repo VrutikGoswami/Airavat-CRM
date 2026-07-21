@@ -168,3 +168,19 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
 }
+
+/* Print: produce clean documents (e.g. the quotation), not app screenshots.
+   App chrome is hidden via `print:hidden` utilities; here we reset the page
+   surface and margins so printed documents sit on white with sensible edges. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+  }
+  body {
+    color: #000000;
+  }
+}
