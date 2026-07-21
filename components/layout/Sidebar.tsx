@@ -16,6 +16,7 @@ import {
   Users,
   FileText,
   BadgeDollarSign,
+  BedDouble,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { useCreateModals } from "@/components/forms/CreateModals";
@@ -27,6 +28,7 @@ const NAV = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/quotations", label: "Quotations", icon: FileText },
   { href: "/flights", label: "Flight Finder", icon: Plane },
+  { href: "/hotels", label: "Hotel Finder", icon: BedDouble },
   { href: "/rates", label: "Supplier Rates", icon: BadgeDollarSign },
   { href: "/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare },

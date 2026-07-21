@@ -51,6 +51,10 @@ export type RateHotelRecord = {
   city: string | null;
   country: string | null;
   star_rating: number | null;
+  area: string | null;
+  short_description: string | null;
+  image_urls: string[];
+  amenities: string[];
 };
 
 export type HotelRateRowRecord = {

@@ -28,8 +28,7 @@ export async function requireRateStaff() {
 
   const { data: staff, error } = await supabase
     .from("users")
-    .select("id,name,email,role,active")
-    .eq("active", true)
+    .select("id,name,email,role")
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

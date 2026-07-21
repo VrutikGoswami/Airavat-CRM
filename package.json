@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:rates": "tsx scripts/test-rate-pipeline.ts"
+    "test:rates": "tsx scripts/test-rate-pipeline.ts",
+    "test:hotels": "tsx scripts/test-hotel-pricing.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",

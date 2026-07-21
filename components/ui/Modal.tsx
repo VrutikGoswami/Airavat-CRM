@@ -17,7 +17,7 @@ export function Modal({
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +61,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative my-8 w-full ${size === "lg" ? "max-w-2xl" : "max-w-lg"} card p-0`}
+        className={`relative my-8 w-full ${size === "xl" ? "max-w-6xl" : size === "lg" ? "max-w-2xl" : "max-w-lg"} card p-0`}
         style={{ boxShadow: "var(--shadow-pop)" }}
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3.5">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { CheckSquare, FileText, Plane, StickyNote, XCircle } from "lucide-react";
+import { BedDouble, CheckSquare, FileText, Plane, StickyNote, XCircle } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
@@ -306,6 +306,11 @@ export default function EnquiryPage() {
             <Link className="btn btn-primary hover:btn-primary-hover" href={`/flights?enquiry=${enquiry.id}`}>
               <Plane className="size-4" aria-hidden /> Find flights
             </Link>
+            {["hotel", "holiday-package", "safari", "group", "corporate"].includes(enquiry.service) ? (
+              <Link className="btn btn-primary hover:btn-primary-hover" href={`/hotels?enquiry=${enquiry.id}`}>
+                <BedDouble className="size-4" aria-hidden /> Find hotels
+              </Link>
+            ) : null}
             <button className="btn btn-primary hover:btn-primary-hover" onClick={() => openCreate("quotation", enquiry.customerId)}>
               <FileText className="size-4" aria-hidden /> Build quotation
             </button>
