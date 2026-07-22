@@ -32,6 +32,7 @@ export type HotelRateOffer = {
   hotelId: string;
   documentId: string;
   supplierName: string;
+  pricingBasis: "rack" | "net";
   roomType: string;
   mealPlan: string;
   occupancy: string;

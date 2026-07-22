@@ -168,6 +168,7 @@ export function createDemoHotelSearch(input: HotelSearchInput): HotelSearchRespo
         hotelId: template.id,
         documentId: "demo-rate-document",
         supplierName: "Airavat sample supplier",
+        pricingBasis: "net",
         roomType: rate.roomType,
         mealPlan: rate.mealPlan,
         occupancy: "Up to 2 adults and 1 child per room",

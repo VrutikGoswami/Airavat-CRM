@@ -253,6 +253,7 @@ export function HotelFinder() {
     rooms: item.rooms,
     adults,
     children,
+    markupPercent: item.rate.pricingBasis === "rack" ? 0 : HOTEL_MARKUP_PERCENT,
   });
 
   const updateSelectedRooms = (rateId: string, nextRooms: number) => setSelected(selected.map((item) => item.rate.id === rateId ? { ...item, rooms: Math.min(10, Math.max(1, nextRooms)) } : item));
@@ -308,7 +309,7 @@ export function HotelFinder() {
             endDate: checkOut,
             quantity: 1,
             costPrice: totals.netTotal,
-            markupPct: HOTEL_MARKUP_PERCENT,
+            markupPct: item.rate.pricingBasis === "rack" ? 0 : HOTEL_MARKUP_PERCENT,
             sellingPrice: totals.clientTotal,
             taxPct: 0,
             notes: "Rate matched; confirm availability.",
@@ -376,7 +377,7 @@ export function HotelFinder() {
                     </div>
                     <div className="flex flex-col justify-between border-t border-line p-4 text-right sm:col-span-2 2xl:col-span-1 2xl:border-l 2xl:border-t-0">
                       <div><p className="text-xs text-muted">Total for {result.nights} nights</p><p className="tnum mt-1 text-xl font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p><p className="mt-1 text-xs text-muted">{rate.calculationNote}</p></div>
-                      <dl className="my-3 space-y-1 text-xs"><div className="flex justify-between"><dt className="text-muted">Net cost</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div className="flex justify-between"><dt className="text-muted">Markup</dt><dd>{HOTEL_MARKUP_PERCENT}%</dd></div><div className="flex justify-between"><dt className="text-muted">Margin</dt><dd className="tnum">{formatMoney(margin, rate.currency)}</dd></div></dl>
+                      <dl className="my-3 space-y-1 text-xs"><div className="flex justify-between"><dt className="text-muted">Supplier total</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div className="flex justify-between"><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack (0% markup)" : `Net + ${HOTEL_MARKUP_PERCENT}%`}</dd></div><div className="flex justify-between"><dt className="text-muted">Margin</dt><dd className="tnum">{formatMoney(margin, rate.currency)}</dd></div></dl>
                       <button className="btn btn-primary hover:btn-primary-hover w-full" onClick={() => setOpenHotelId(item.hotel.id)}>View rooms <ChevronRight className="size-4" /></button>
                     </div>
                   </div>
@@ -417,7 +418,7 @@ function RoomRow({ hotel, rate, selected, onToggle }: { hotel: HotelMetadata; ra
 }
 
 function RoomCard({ hotel, rate, rooms, selected, onToggle }: { hotel: HotelMetadata; rate: HotelRateOffer; rooms: number; selected: boolean; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void }) {
-  return <div className="rounded-lg border border-line p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{rate.roomType}</p><p className="text-sm text-muted">{rate.mealPlan} | {rate.occupancy}</p></div><p className="tnum text-right font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p></div><dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><dt className="text-muted">Rate basis</dt><dd>{rate.unitBasis}</dd></div><div><dt className="text-muted">Net rate</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div><dt className="text-muted">Tax</dt><dd>{rate.taxIncluded}</dd></div><div><dt className="text-muted">Commission</dt><dd>{rate.commissionIncluded}</dd></div></dl><p className="mt-3 text-xs">{cancellationSummary(rate.cancellationPolicy)}</p><p className="mt-1 text-xs text-muted">{rate.paymentTerms || "Payment terms not supplied"}</p><button className={selected ? "btn btn-ghost mt-4 w-full" : "btn btn-primary hover:btn-primary-hover mt-4 w-full"} onClick={() => onToggle(hotel, rate)} disabled={rate.requiresConfirmation}>{selected ? <><Check className="size-4" /> Selected</> : rate.requiresConfirmation ? "Confirm rate basis" : `Select for ${rooms} room${rooms === 1 ? "" : "s"}`}</button></div>;
+  return <div className="rounded-lg border border-line p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{rate.roomType}</p><p className="text-sm text-muted">{rate.mealPlan} | {rate.occupancy}</p></div><p className="tnum text-right font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p></div><dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><dt className="text-muted">Rate basis</dt><dd>{rate.unitBasis}</dd></div><div><dt className="text-muted">Supplier rate</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div><dt className="text-muted">Tax</dt><dd>{rate.taxIncluded}</dd></div><div><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack" : "Net"}</dd></div></dl><p className="mt-3 text-xs">{cancellationSummary(rate.cancellationPolicy)}</p><p className="mt-1 text-xs text-muted">{rate.paymentTerms || "Payment terms not supplied"}</p><button className={selected ? "btn btn-ghost mt-4 w-full" : "btn btn-primary hover:btn-primary-hover mt-4 w-full"} onClick={() => onToggle(hotel, rate)} disabled={rate.requiresConfirmation}>{selected ? <><Check className="size-4" /> Selected</> : rate.requiresConfirmation ? "Confirm rate basis" : `Select for ${rooms} room${rooms === 1 ? "" : "s"}`}</button></div>;
 }
 
 function MetadataEditor({ hotel, source, onSaved }: { hotel: HotelMetadata; source: "live" | "demo"; onSaved: (hotel: HotelMetadata) => void }) {

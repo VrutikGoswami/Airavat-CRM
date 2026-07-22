@@ -51,7 +51,7 @@ type JoinedHotel = {
   website_url: string | null;
 };
 
-type JoinedDocument = { supplier_name: string | null };
+type JoinedDocument = { supplier_name: string | null; pricing_basis: "rack" | "net" };
 
 type JoinedRate = {
   id: string;
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
         room_type,meal_plan,occupancy,adults,children,amount,currency,market,unit_basis,
         minimum_stay,tax_included,commission_included,cancellation_policy,payment_terms,conditions,
         hotel:rate_hotels!inner(id,name,destination_name,city,country,star_rating,area,short_description,image_urls,amenities,hotel_group,website_url),
-        document:rate_documents!inner(supplier_name,status)
+        document:rate_documents!inner(supplier_name,status,pricing_basis)
       `)
       .eq("active", true)
       .eq("review_status", "approved")
@@ -143,12 +143,14 @@ export async function POST(request: Request) {
         rooms: input.rooms,
         adults: input.adults,
         children: input.children,
+        markupPercent: document.pricing_basis === "rack" ? 0 : undefined,
       });
       const offer: HotelRateOffer = {
         id: row.id,
         hotelId: row.hotel_id,
         documentId: row.document_id,
         supplierName: document.supplier_name || hotel.name,
+        pricingBasis: document.pricing_basis,
         roomType: row.room_type,
         mealPlan: row.meal_plan,
         occupancy: row.occupancy,
