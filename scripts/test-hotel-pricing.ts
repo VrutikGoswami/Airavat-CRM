@@ -7,6 +7,8 @@ import {
   stayHitsBlackout,
 } from "../lib/hotels";
 import { createDemoHotelSearch } from "../lib/hotels/demo";
+import { parseCustomerHotelSelection, resolveCustomerSelectedRate } from "../lib/hotel-selection";
+import type { HotelSearchResult } from "../lib/hotels";
 
 const search = { nights: 4, rooms: 2, adults: 3, children: 1, markupPercent: 2 };
 
@@ -57,4 +59,35 @@ assert.equal(demo.nights, 5);
 assert.equal(demo.results.length, 3);
 assert.ok(demo.results.every((result) => result.hotel.id.startsWith("demo-hotel-")));
 
-console.log(`Hotel pricing checks passed (${expected.length} supported bases plus constraints).`);
+const selectedRequirements = JSON.stringify({
+  notes: "Selected website hotel rate · Ocean House · Deluxe Room · Double · half board · KES 60000 total · KES 15000 per night",
+  service_details: {
+    rooms: 1,
+    roomConfiguration: "Ocean House · Deluxe Room · Double",
+    mealPlan: "half-board",
+  },
+});
+const customerSelection = parseCustomerHotelSelection(selectedRequirements);
+assert.equal(customerSelection.explicit, true);
+assert.equal(customerSelection.hotel, "Ocean House");
+assert.equal(customerSelection.roomType, "Deluxe Room");
+assert.equal(customerSelection.occupancy, "Double");
+assert.equal(customerSelection.total, 60_000);
+
+const matchingResults = [{
+  hotel: { name: "Ocean House" },
+  rates: [
+    { id: "single", roomType: "Deluxe Room", occupancy: "Single", mealPlan: "Half Board", currency: "KES", amount: 10_000, netTotal: 40_000, clientTotal: 40_800 },
+    { id: "customer-choice", roomType: "Deluxe Room", occupancy: "Double", mealPlan: "Half Board", currency: "KES", amount: 14_500, netTotal: 58_000, clientTotal: 59_160 },
+    { id: "other-double", roomType: "Deluxe Room", occupancy: "Double", mealPlan: "Half Board", currency: "KES", amount: 17_000, netTotal: 68_000, clientTotal: 69_360 },
+    { id: "standard", roomType: "Standard Room", occupancy: "Double", mealPlan: "Half Board", currency: "KES", amount: 12_000, netTotal: 48_000, clientTotal: 48_960 },
+  ],
+}] as unknown as HotelSearchResult[];
+assert.equal(resolveCustomerSelectedRate(matchingResults, customerSelection, 4), "customer-choice");
+assert.equal(
+  resolveCustomerSelectedRate(matchingResults, parseCustomerHotelSelection("Needs a double room"), 4),
+  null,
+  "General hotel preferences must not be highlighted as a website-selected rate",
+);
+
+console.log(`Hotel pricing checks passed (${expected.length} supported bases, constraints, and selected-rate matching).`);
