@@ -25,6 +25,9 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
+alter table public.users
+  add column if not exists active boolean not null default true;
+
 -- Keep this migration safe on CRM projects that were created before the RLS
 -- helper migration was introduced. These definitions match 0001/0002 and are
 -- intentionally schema-qualified so Storage policies can resolve them too.
