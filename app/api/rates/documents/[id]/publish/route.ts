@@ -33,40 +33,11 @@ export async function POST(_request: Request, context: Context) {
       return Response.json({ error: "The document has no valid rate rows to publish." }, { status: 409 });
     }
 
-    const now = new Date().toISOString();
-    const { error: approveError } = await supabase
-      .from("hotel_rate_rows")
-      .update({
-        review_status: "approved",
-        active: true,
-        approved_by: staff.id,
-        approved_at: now,
-      })
-      .in("id", publishableIds);
-    if (approveError) throw approveError;
-
-    const rejectedOrInvalidIds = (rows ?? [])
-      .filter((row) => !publishableIds.includes(row.id))
-      .map((row) => row.id);
-    if (rejectedOrInvalidIds.length > 0) {
-      const { error: deactivateError } = await supabase
-        .from("hotel_rate_rows")
-        .update({ active: false })
-        .in("id", rejectedOrInvalidIds);
-      if (deactivateError) throw deactivateError;
-    }
-
-    const { error: documentUpdateError } = await supabase
-      .from("rate_documents")
-      .update({
-        status: "approved",
-        reviewed_by: staff.id,
-        reviewed_at: now,
-        approved_at: now,
-        error_message: null,
-      })
-      .eq("id", id);
-    if (documentUpdateError) throw documentUpdateError;
+    const { error: publishError } = await supabase.rpc("publish_rate_document_service", {
+      p_document_id: id,
+      p_actor_id: staff.id,
+    });
+    if (publishError) throw publishError;
 
     return Response.json({ ok: true });
   } catch (error) {

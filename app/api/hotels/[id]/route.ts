@@ -9,6 +9,8 @@ const metadataSchema = z.object({
   shortDescription: z.string().trim().max(600).nullable(),
   imageUrls: z.array(z.string().trim().min(1).max(500)).max(8),
   amenities: z.array(z.string().trim().min(1).max(80)).max(20),
+  hotelGroup: z.string().trim().max(160).nullable(),
+  websiteUrl: z.string().trim().url().max(500).nullable(),
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -34,10 +36,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         short_description: parsed.data.shortDescription || null,
         image_urls: parsed.data.imageUrls,
         amenities: parsed.data.amenities,
+        hotel_group: parsed.data.hotelGroup || null,
+        website_url: parsed.data.websiteUrl || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .select("id,area,short_description,image_urls,amenities")
+      .select("id,area,short_description,image_urls,amenities,hotel_group,website_url")
       .single();
     if (error) throw error;
     return Response.json({ hotel: data, notice: "Hotel details saved." });

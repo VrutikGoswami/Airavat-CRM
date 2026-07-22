@@ -23,6 +23,8 @@ export type HotelMetadata = {
   shortDescription: string | null;
   imageUrls: string[];
   amenities: string[];
+  hotelGroup: string | null;
+  websiteUrl: string | null;
 };
 
 export type HotelRateOffer = {

@@ -7,7 +7,7 @@ import {
   type HotelSearchResponse,
 } from "@/lib/hotels";
 
-type DemoHotelTemplate = Omit<HotelMetadata, "destinationName" | "city" | "country"> & {
+type DemoHotelTemplate = Omit<HotelMetadata, "destinationName" | "city" | "country" | "hotelGroup" | "websiteUrl"> & {
   roomRates: Array<{
     roomType: string;
     mealPlan: string;
@@ -206,6 +206,8 @@ export function createDemoHotelSearch(input: HotelSearchInput): HotelSearchRespo
         shortDescription: template.shortDescription,
         imageUrls: template.imageUrls,
         amenities: template.amenities,
+        hotelGroup: null,
+        websiteUrl: null,
       },
       rates: ratesFor(template),
     })).filter((result) => result.rates.length > 0),

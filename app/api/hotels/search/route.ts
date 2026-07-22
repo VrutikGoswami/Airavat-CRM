@@ -47,6 +47,8 @@ type JoinedHotel = {
   short_description: string | null;
   image_urls: string[] | null;
   amenities: string[] | null;
+  hotel_group: string | null;
+  website_url: string | null;
 };
 
 type JoinedDocument = { supplier_name: string | null };
@@ -110,7 +112,7 @@ export async function POST(request: Request) {
         id,document_id,hotel_id,rate_type,valid_from,valid_to,booking_by,blackout_dates,
         room_type,meal_plan,occupancy,adults,children,amount,currency,market,unit_basis,
         minimum_stay,tax_included,commission_included,cancellation_policy,payment_terms,conditions,
-        hotel:rate_hotels!inner(id,name,destination_name,city,country,star_rating,area,short_description,image_urls,amenities),
+        hotel:rate_hotels!inner(id,name,destination_name,city,country,star_rating,area,short_description,image_urls,amenities,hotel_group,website_url),
         document:rate_documents!inner(supplier_name,status)
       `)
       .eq("active", true)
@@ -184,6 +186,8 @@ export async function POST(request: Request) {
             shortDescription: hotel.short_description,
             imageUrls: hotel.image_urls ?? [],
             amenities: hotel.amenities ?? [],
+            hotelGroup: hotel.hotel_group,
+            websiteUrl: hotel.website_url,
           },
           rates: [offer],
         });

@@ -10,6 +10,8 @@ type ListDocument = Pick<
   RateDocumentRecord,
   | "id"
   | "file_name"
+  | "source_relative_path"
+  | "ingestion_batch"
   | "supplier_name"
   | "contract_name"
   | "pricing_basis"
@@ -71,33 +73,35 @@ export function RateDocumentsClient() {
 
   async function uploadRatePdf(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const file = inputRef.current?.files?.[0];
-    if (!file) {
-      setError("Choose a supplier PDF first.");
+    const files = [...(inputRef.current?.files ?? [])];
+    if (files.length === 0) {
+      setError("Choose one or more supplier PDFs first.");
       return;
     }
     setUploading(true);
     setError(null);
     setNotice(null);
     try {
-      const form = new FormData();
-      form.set("file", file);
-      const response = await fetch("/api/rates/documents", { method: "POST", body: form });
-      const body = (await response.json()) as {
-        document?: ListDocument;
-        error?: string;
-        warning?: string;
-      };
-      if (!response.ok) throw new Error(body.error || "The PDF could not be uploaded.");
-      if (body.document) {
-        setDocuments((current) => [body.document!, ...current]);
+      const uploaded: ListDocument[] = [];
+      const failures: string[] = [];
+      for (const file of files) {
+        const form = new FormData();
+        form.set("file", file);
+        const response = await fetch("/api/rates/documents", { method: "POST", body: form });
+        const body = (await response.json()) as {
+          document?: ListDocument;
+          error?: string;
+          warning?: string;
+        };
+        if (body.document) uploaded.push(body.document);
+        if (!response.ok || body.warning) {
+          failures.push(`${file.name}: ${body.error || body.warning || "upload failed"}`);
+        }
       }
+      if (uploaded.length > 0) setDocuments((current) => [...uploaded.reverse(), ...current]);
       if (inputRef.current) inputRef.current.value = "";
-      setNotice(
-        body.warning
-          ? `PDF saved, but extraction needs attention: ${body.warning}`
-          : "PDF uploaded. Extraction has started and this list will update automatically.",
-      );
+      setNotice(`${uploaded.length} of ${files.length} PDFs uploaded. Extraction starts separately for each document.`);
+      if (failures.length > 0) setError(failures.join(" "));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The PDF could not be uploaded.");
     } finally {
@@ -114,7 +118,7 @@ export function RateDocumentsClient() {
       <section className="border-y border-line bg-surface px-4 py-5 sm:px-5">
         <div className="grid gap-5 lg:grid-cols-[1fr_1.3fr] lg:items-end">
           <div>
-            <h2 className="text-base font-bold">Upload a supplier rate PDF</h2>
+            <h2 className="text-base font-bold">Upload supplier rate PDFs</h2>
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">
               The PDF stays private. AI extraction creates inactive rows that must be reviewed
               before they can appear on the website.
@@ -127,13 +131,14 @@ export function RateDocumentsClient() {
                 ref={inputRef}
                 type="file"
                 accept="application/pdf,.pdf"
+                multiple
                 required
                 className="input file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-semibold"
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={uploading}>
               <Upload className="size-4" aria-hidden />
-              {uploading ? "Uploading..." : "Upload and extract"}
+              {uploading ? "Uploading batch..." : "Upload and extract"}
             </button>
           </form>
         </div>
@@ -179,6 +184,9 @@ export function RateDocumentsClient() {
                   <p className="mt-1 text-sm text-muted">
                     {[document.supplier_name, document.contract_name].filter(Boolean).join(" · ") || "Supplier details pending extraction"}
                   </p>
+                  {document.source_relative_path ? (
+                    <p className="mt-1 truncate text-xs text-muted">{document.source_relative_path}</p>
+                  ) : null}
                   <p className="mt-2 text-xs text-muted">
                     {document.hotel_count} hotels · {document.valid_rate_rows} valid rows · {document.invalid_rate_rows} excluded · uploaded {new Date(document.uploaded_at).toLocaleString()}
                   </p>

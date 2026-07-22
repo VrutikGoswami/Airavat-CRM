@@ -7,7 +7,7 @@ export async function GET() {
     const { supabase } = await requireRateStaff();
     const { data, error } = await supabase
       .from("rate_documents")
-      .select("id,file_name,supplier_name,contract_name,pricing_basis,status,hotel_count,valid_rate_rows,invalid_rate_rows,error_message,uploaded_at,updated_at")
+      .select("id,file_name,source_relative_path,ingestion_batch,supplier_name,contract_name,pricing_basis,status,hotel_count,valid_rate_rows,invalid_rate_rows,error_message,uploaded_at,updated_at")
       .order("uploaded_at", { ascending: false })
       .limit(200);
     if (error) throw error;

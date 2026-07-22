@@ -18,6 +18,8 @@ export type RateDocumentRecord = {
   mime_type: string;
   file_size_bytes: number;
   content_sha256: string;
+  source_relative_path: string | null;
+  ingestion_batch: string | null;
   supplier_name: string | null;
   contract_name: string | null;
   document_type: string | null;
@@ -55,6 +57,8 @@ export type RateHotelRecord = {
   short_description: string | null;
   image_urls: string[];
   amenities: string[];
+  hotel_group: string | null;
+  website_url: string | null;
 };
 
 export type HotelRateRowRecord = {
