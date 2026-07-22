@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Building2,
@@ -55,6 +55,31 @@ function numberFromBudget(value: string): number | null {
 function mealFromEnquiry(enquiry?: Enquiry): string {
   const text = `${enquiry?.requirements ?? ""} ${enquiry?.budget ?? ""}`.toLowerCase();
   return MEAL_PLANS.find((meal) => meal !== "Any" && text.includes(meal.toLowerCase())) ?? "Any";
+}
+
+function websiteHotelDetails(enquiry?: Enquiry): { rooms: number; preference: string } {
+  if (!enquiry) return { rooms: 1, preference: "" };
+  try {
+    const payload = JSON.parse(enquiry.requirements) as {
+      notes?: string;
+      service_details?: { rooms?: number; roomConfiguration?: string; mealPlan?: string };
+    };
+    const details = payload.service_details ?? {};
+    return {
+      rooms: Number.isInteger(details.rooms) && Number(details.rooms) > 0 ? Number(details.rooms) : 1,
+      preference: [details.roomConfiguration, details.mealPlan, payload.notes]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase(),
+    };
+  } catch {
+    return { rooms: 1, preference: enquiry.requirements.toLowerCase() };
+  }
+}
+
+function isCustomerSelection(hotel: HotelMetadata, rate: HotelRateOffer, preference: string): boolean {
+  if (!preference || !preference.includes(hotel.name.toLowerCase())) return false;
+  return preference.includes(rate.roomType.toLowerCase()) || preference.includes(rate.occupancy.toLowerCase());
 }
 
 function formatMoney(amount: number | null, currency: string): string {
@@ -140,13 +165,16 @@ export function HotelFinder() {
   const requestedEnquiry = ws.enquiry(params.get("enquiry") ?? "");
   const fallbackEnquiry = ws.data.enquiries.find((enquiry) => enquiry.status === "open" && ["hotel", "holiday-package", "safari"].includes(enquiry.service));
   const initial = requestedEnquiry ?? fallbackEnquiry;
+  const initialHotelDetails = websiteHotelDetails(initial);
+  const availabilityMode = Boolean(requestedEnquiry?.service === "hotel");
+  const autoSearchRef = useRef(false);
 
   const [enquiryId, setEnquiryId] = useState(initial?.id ?? "");
   const [customerId, setCustomerId] = useState(initial?.customerId ?? ws.data.customers[0]?.id ?? "");
   const [destination, setDestination] = useState(initial?.destination ?? "Diani Beach");
   const [checkIn, setCheckIn] = useState(initial?.travelStartDate || futureDate(30));
   const [checkOut, setCheckOut] = useState(initial?.travelEndDate || futureDate(35));
-  const [rooms, setRooms] = useState(1);
+  const [rooms, setRooms] = useState(initialHotelDetails.rooms);
   const [adults, setAdults] = useState(initial?.travellers.adults ?? 2);
   const [children, setChildren] = useState(initial?.travellers.children ?? 0);
   const [market, setMarket] = useState("Resident");
@@ -177,6 +205,7 @@ export function HotelFinder() {
     setCheckOut(enquiry.travelEndDate);
     setAdults(enquiry.travellers.adults);
     setChildren(enquiry.travellers.children);
+    setRooms(websiteHotelDetails(enquiry).rooms);
     setMealPlan(mealFromEnquiry(enquiry));
     setBudget(numberFromBudget(enquiry.budget)?.toString() ?? "");
     setResult(null);
@@ -201,6 +230,13 @@ export function HotelFinder() {
       setResult(body);
       setFilterBudget(budget);
       setFilterMeal("Any");
+      if (availabilityMode && body.results.length) {
+        const preference = websiteHotelDetails(requestedEnquiry).preference;
+        const preferred = body.results.find((item) =>
+          item.rates.some((rate) => isCustomerSelection(item.hotel, rate, preference)),
+        );
+        setOpenHotelId((preferred ?? body.results[0]).hotel.id);
+      }
       if (!body.results.length) setError("No approved supplier rates matched. Try another meal plan, market, or date range.");
     } catch (searchError) {
       setResult(null);
@@ -209,6 +245,14 @@ export function HotelFinder() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!availabilityMode || autoSearchRef.current) return;
+    autoSearchRef.current = true;
+    void searchHotels();
+    // Search once from the enquiry values captured on first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availabilityMode]);
 
   const amenities = useMemo(() => [...new Set(result?.results.flatMap((item) => item.hotel.amenities) ?? [])].sort(), [result]);
   const visibleResults = useMemo(() => {
@@ -244,6 +288,29 @@ export function HotelFinder() {
     if (selected.some((item) => item.rate.currency !== rate.currency)) return setError("Keep all quotation options in the same supplier currency.");
     setError(null);
     setSelected([...selected, { hotel, rate, rooms }]);
+    if (enquiryId) {
+      const linked = ws.enquiry(enquiryId);
+      if (linked) {
+        const taskTitle = `Confirm availability: ${hotel.name} - ${rate.roomType}`;
+        ws.setWaitingOn(enquiryId, "supplier");
+        ws.addNote(
+          enquiryId,
+          `Availability check requested for ${hotel.name}, ${rate.roomType}, ${rate.mealPlan}, ${rooms} room${rooms === 1 ? "" : "s"}. Automation handoff queued for supplier confirmation.`,
+        );
+        if (!ws.data.tasks.some((task) => !task.done && task.enquiryId === enquiryId && task.title === taskTitle)) {
+          ws.createTask({
+            title: taskTitle,
+            type: "confirm-supplier",
+            customerId: linked.customerId,
+            enquiryId,
+            assignedToId: ws.currentUser.id,
+            dueAt: new Date().toISOString(),
+            priority: "high",
+          });
+        }
+      }
+      setOpenHotelId(null);
+    }
   };
 
   const selectedTotals = (item: SelectedRate) => calculateHotelRate({
@@ -253,7 +320,7 @@ export function HotelFinder() {
     rooms: item.rooms,
     adults,
     children,
-    markupPercent: item.rate.pricingBasis === "rack" ? 0 : HOTEL_MARKUP_PERCENT,
+    markupPercent: HOTEL_MARKUP_PERCENT,
   });
 
   const updateSelectedRooms = (rateId: string, nextRooms: number) => setSelected(selected.map((item) => item.rate.id === rateId ? { ...item, rooms: Math.min(10, Math.max(1, nextRooms)) } : item));
@@ -309,7 +376,7 @@ export function HotelFinder() {
             endDate: checkOut,
             quantity: 1,
             costPrice: totals.netTotal,
-            markupPct: item.rate.pricingBasis === "rack" ? 0 : HOTEL_MARKUP_PERCENT,
+            markupPct: HOTEL_MARKUP_PERCENT,
             sellingPrice: totals.clientTotal,
             taxPct: 0,
             notes: "Rate matched; confirm availability.",
@@ -377,7 +444,7 @@ export function HotelFinder() {
                     </div>
                     <div className="flex flex-col justify-between border-t border-line p-4 text-right sm:col-span-2 2xl:col-span-1 2xl:border-l 2xl:border-t-0">
                       <div><p className="text-xs text-muted">Total for {result.nights} nights</p><p className="tnum mt-1 text-xl font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p><p className="mt-1 text-xs text-muted">{rate.calculationNote}</p></div>
-                      <dl className="my-3 space-y-1 text-xs"><div className="flex justify-between"><dt className="text-muted">Supplier total</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div className="flex justify-between"><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack (0% markup)" : `Net + ${HOTEL_MARKUP_PERCENT}%`}</dd></div><div className="flex justify-between"><dt className="text-muted">Margin</dt><dd className="tnum">{formatMoney(margin, rate.currency)}</dd></div></dl>
+                      <dl className="my-3 space-y-1 text-xs"><div className="flex justify-between"><dt className="text-muted">Supplier total</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div className="flex justify-between"><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack" : "Net"} + {HOTEL_MARKUP_PERCENT}%</dd></div><div className="flex justify-between"><dt className="text-muted">Margin</dt><dd className="tnum">{formatMoney(margin, rate.currency)}</dd></div></dl>
                       <button className="btn btn-primary hover:btn-primary-hover w-full" onClick={() => setOpenHotelId(item.hotel.id)}>View rooms <ChevronRight className="size-4" /></button>
                     </div>
                   </div>
@@ -395,7 +462,7 @@ export function HotelFinder() {
 
       {selected.length ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface p-3 shadow-[0_-6px_20px_rgba(29,42,34,0.12)] xl:hidden"><div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><button className="min-w-0 text-left" onClick={() => setSelectionReviewOpen(true)}><p className="truncate font-bold">{selected.length} option{selected.length === 1 ? "" : "s"}</p><p className="text-xs font-semibold text-terracotta">Review rooms</p></button><button className="btn btn-primary hover:btn-primary-hover shrink-0" onClick={createQuotation} disabled={creating}><FileText className="size-4" />{creating ? "Creating..." : "Create draft"}</button></div></div> : null}
 
-      <HotelDetails openResult={openResult} source={result?.source ?? "live"} selected={selected} rooms={rooms} onClose={() => setOpenHotelId(null)} onToggle={toggleRate} onUpdateHotel={updateHotel} />
+      <HotelDetails openResult={openResult} source={result?.source ?? "live"} selected={selected} rooms={rooms} preference={websiteHotelDetails(requestedEnquiry).preference} onClose={() => setOpenHotelId(null)} onToggle={toggleRate} onUpdateHotel={updateHotel} />
       <Modal open={selectionReviewOpen} title="Quotation options" onClose={() => setSelectionReviewOpen(false)} size="lg"><SelectionSummary selected={selected} selectedTotals={selectedTotals} updateRooms={updateSelectedRooms} remove={(id) => setSelected(selected.filter((item) => item.rate.id !== id))} createQuotation={createQuotation} creating={creating} /></Modal>
 
       {drawer ? <div className="fixed inset-0 z-[70] lg:hidden"><button className="absolute inset-0 bg-ink/40" aria-label="Close drawer" onClick={() => setDrawer(null)} /><div className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-lg bg-surface p-5"><div className="mb-5 flex items-center justify-between"><h2 className="font-bold">{drawer === "filters" ? "Filter results" : "Sort results"}</h2><button className="row-hover rounded-md p-2" onClick={() => setDrawer(null)} aria-label="Close"><X className="size-4" /></button></div>{drawer === "filters" ? <FilterControls {...filterProps} /> : <div className="space-y-2">{([['recommended', 'Recommended'], ['lowest', 'Lowest total'], ['stars', 'Highest stars']] as const).map(([value, label]) => <label key={value} className="flex items-center gap-3 border-b border-line py-3 text-sm"><input type="radio" name="sort" className="size-4 accent-[var(--color-terracotta)]" checked={sort === value} onChange={() => setSort(value)} />{label}</label>)}</div>}<button className="btn btn-primary hover:btn-primary-hover mt-5 w-full" onClick={() => setDrawer(null)}>Show results</button></div></div> : null}
@@ -407,18 +474,18 @@ function SelectionSummary({ selected, selectedTotals, updateRooms, remove, creat
   return <aside className={className}><div className="rounded-lg border border-line bg-surface p-4"><h2 className="font-bold">Quotation options</h2><p className="mt-1 text-xs text-muted">Select up to three room rates.</p>{selected.length ? <div className="mt-4 space-y-4">{selected.map((item, index) => { const totals = selectedTotals(item); return <div key={item.rate.id} className="border-t border-line pt-3"><div className="flex items-start justify-between gap-2"><div><span className="badge badge-info">Option {String.fromCharCode(65 + index)}</span><p className="mt-1 text-sm font-bold">{item.hotel.name}</p><p className="text-xs text-muted">{item.rate.roomType}</p></div><button className="row-hover rounded-md p-1 text-muted" onClick={() => remove(item.rate.id)} aria-label={`Remove ${item.hotel.name}`}><X className="size-4" /></button></div><div className="mt-3 flex items-center justify-between"><span className="text-xs text-muted">Rooms</span><div className="flex h-8 items-center rounded-md border border-line"><button className="h-full px-2" onClick={() => updateRooms(item.rate.id, item.rooms - 1)} aria-label="Decrease rooms"><Minus className="size-3" /></button><span className="tnum w-7 text-center text-sm font-semibold">{item.rooms}</span><button className="h-full px-2" onClick={() => updateRooms(item.rate.id, item.rooms + 1)} aria-label="Increase rooms"><Plus className="size-3" /></button></div></div><p className="tnum mt-2 text-right text-sm font-bold">{formatMoney(totals.clientTotal, item.rate.currency)}</p></div>; })}<button className="btn btn-primary hover:btn-primary-hover w-full" onClick={createQuotation} disabled={creating}><FileText className="size-4" />{creating ? "Creating..." : "Create draft quotation"}</button></div> : <div className="mt-4 rounded-lg bg-surface-2 px-3 py-6 text-center text-sm text-muted">Choose a room rate to begin.</div>}</div></aside>;
 }
 
-function HotelDetails({ openResult, source, selected, rooms, onClose, onToggle, onUpdateHotel }: { openResult: HotelSearchResult | null; source: "live" | "demo"; selected: SelectedRate[]; rooms: number; onClose: () => void; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void; onUpdateHotel: (hotel: HotelMetadata) => void }) {
+function HotelDetails({ openResult, source, selected, rooms, preference, onClose, onToggle, onUpdateHotel }: { openResult: HotelSearchResult | null; source: "live" | "demo"; selected: SelectedRate[]; rooms: number; preference: string; onClose: () => void; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void; onUpdateHotel: (hotel: HotelMetadata) => void }) {
   const [editing, setEditing] = useState(false);
   if (!openResult) return null;
-  return <Modal open title={openResult.hotel.name} onClose={() => { setEditing(false); onClose(); }} size="xl"><div className="space-y-5"><div className="grid gap-3 sm:grid-cols-3"><HotelImage hotel={openResult.hotel} className="aspect-[16/9] rounded-lg sm:col-span-2" />{openResult.hotel.imageUrls[1] ? <div className="aspect-[16/9] rounded-lg bg-surface-2 bg-cover bg-center sm:aspect-auto" style={imageStyle(openResult.hotel.imageUrls[1])} /> : <div className="flex min-h-28 items-center justify-center rounded-lg bg-surface-2 text-muted"><ImageIcon className="size-7" /></div>}</div><div className="flex flex-wrap items-start justify-between gap-4"><div><Stars count={openResult.hotel.starRating} /><p className="mt-1 text-sm font-semibold text-terracotta">{openResult.hotel.area || openResult.hotel.city || openResult.hotel.destinationName}</p><p className="mt-2 max-w-3xl text-sm text-muted">{openResult.hotel.shortDescription || "Add a short property summary for staff."}</p><div className="mt-3 flex flex-wrap gap-1.5">{openResult.hotel.amenities.map((amenity) => <span key={amenity} className="rounded bg-surface-2 px-2 py-1 text-xs font-medium">{amenity}</span>)}</div></div><button className="btn btn-ghost" onClick={() => setEditing(!editing)}><Pencil className="size-4" /> Edit details</button></div>{editing ? <MetadataEditor hotel={openResult.hotel} source={source} onSaved={(hotel) => { onUpdateHotel(hotel); setEditing(false); }} /> : null}<div><h3 className="mb-3 font-bold">Matching rooms</h3><div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[980px] text-left text-sm"><thead className="border-y border-line bg-surface-2 text-xs uppercase text-muted"><tr><th className="px-3 py-2">Room</th><th className="px-3 py-2">Meal / occupancy</th><th className="px-3 py-2">Basis</th><th className="px-3 py-2">Terms</th><th className="px-3 py-2 text-right">Net rate</th><th className="px-3 py-2 text-right">Client total</th><th className="px-3 py-2" /></tr></thead><tbody className="divide-y divide-line">{openResult.rates.map((rate) => <RoomRow key={rate.id} hotel={openResult.hotel} rate={rate} selected={selected.some((item) => item.rate.id === rate.id)} onToggle={onToggle} />)}</tbody></table></div><div className="space-y-3 lg:hidden">{openResult.rates.map((rate) => <RoomCard key={rate.id} hotel={openResult.hotel} rate={rate} rooms={rooms} selected={selected.some((item) => item.rate.id === rate.id)} onToggle={onToggle} />)}</div></div><p className="border-l-2 border-warning bg-warning/5 px-3 py-2 text-xs text-warning">Rate matched; confirm availability. Supplier inventory is not live or guaranteed.</p></div></Modal>;
+  return <Modal open title={openResult.hotel.name} onClose={() => { setEditing(false); onClose(); }} size="xl"><div className="space-y-5"><div className="grid gap-3 sm:grid-cols-3"><HotelImage hotel={openResult.hotel} className="aspect-[16/9] rounded-lg sm:col-span-2" />{openResult.hotel.imageUrls[1] ? <div className="aspect-[16/9] rounded-lg bg-surface-2 bg-cover bg-center sm:aspect-auto" style={imageStyle(openResult.hotel.imageUrls[1])} /> : <div className="flex min-h-28 items-center justify-center rounded-lg bg-surface-2 text-muted"><ImageIcon className="size-7" /></div>}</div><div className="flex flex-wrap items-start justify-between gap-4"><div><Stars count={openResult.hotel.starRating} /><p className="mt-1 text-sm font-semibold text-terracotta">{openResult.hotel.area || openResult.hotel.city || openResult.hotel.destinationName}</p><p className="mt-2 max-w-3xl text-sm text-muted">{openResult.hotel.shortDescription || "Add a short property summary for staff."}</p><div className="mt-3 flex flex-wrap gap-1.5">{openResult.hotel.amenities.map((amenity) => <span key={amenity} className="rounded bg-surface-2 px-2 py-1 text-xs font-medium">{amenity}</span>)}</div></div><button className="btn btn-ghost" onClick={() => setEditing(!editing)}><Pencil className="size-4" /> Edit details</button></div>{editing ? <MetadataEditor hotel={openResult.hotel} source={source} onSaved={(hotel) => { onUpdateHotel(hotel); setEditing(false); }} /> : null}<div><h3 className="mb-3 font-bold">Matching rooms</h3><div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[980px] text-left text-sm"><thead className="border-y border-line bg-surface-2 text-xs uppercase text-muted"><tr><th className="px-3 py-2">Room</th><th className="px-3 py-2">Meal / occupancy</th><th className="px-3 py-2">Basis</th><th className="px-3 py-2">Terms</th><th className="px-3 py-2 text-right">Net rate</th><th className="px-3 py-2 text-right">Client total</th><th className="px-3 py-2" /></tr></thead><tbody className="divide-y divide-line">{openResult.rates.map((rate) => <RoomRow key={rate.id} hotel={openResult.hotel} rate={rate} selected={selected.some((item) => item.rate.id === rate.id)} preferred={isCustomerSelection(openResult.hotel, rate, preference)} onToggle={onToggle} />)}</tbody></table></div><div className="space-y-3 lg:hidden">{openResult.rates.map((rate) => <RoomCard key={rate.id} hotel={openResult.hotel} rate={rate} rooms={rooms} selected={selected.some((item) => item.rate.id === rate.id)} preferred={isCustomerSelection(openResult.hotel, rate, preference)} onToggle={onToggle} />)}</div></div><p className="border-l-2 border-warning bg-warning/5 px-3 py-2 text-xs text-warning">Rate matched; confirm availability. Supplier inventory is not live or guaranteed.</p></div></Modal>;
 }
 
-function RoomRow({ hotel, rate, selected, onToggle }: { hotel: HotelMetadata; rate: HotelRateOffer; selected: boolean; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void }) {
-  return <tr><td className="px-3 py-3 align-top"><p className="font-bold">{rate.roomType}</p><p className="mt-1 text-xs text-muted">{rate.rateType}</p></td><td className="px-3 py-3 align-top"><p>{rate.mealPlan}</p><p className="mt-1 text-xs text-muted">{rate.occupancy}</p></td><td className="px-3 py-3 align-top"><p>{rate.unitBasis}</p><p className="mt-1 text-xs text-muted">Tax {rate.taxIncluded.toLowerCase()} | Commission {rate.commissionIncluded.toLowerCase()}</p></td><td className="max-w-64 px-3 py-3 align-top"><p className="line-clamp-2 text-xs">{cancellationSummary(rate.cancellationPolicy)}</p><p className="mt-1 line-clamp-2 text-xs text-muted">{rate.paymentTerms || "Payment terms not supplied"}</p></td><td className="tnum px-3 py-3 text-right align-top">{formatMoney(rate.netTotal, rate.currency)}</td><td className="tnum px-3 py-3 text-right align-top font-bold">{formatMoney(rate.clientTotal, rate.currency)}</td><td className="px-3 py-3 text-right align-top"><button className={selected ? "btn btn-ghost" : "btn btn-primary hover:btn-primary-hover"} onClick={() => onToggle(hotel, rate)} disabled={rate.requiresConfirmation}>{selected ? <><Check className="size-4" /> Selected</> : rate.requiresConfirmation ? "Confirm basis" : "Select"}</button></td></tr>;
+function RoomRow({ hotel, rate, selected, preferred, onToggle }: { hotel: HotelMetadata; rate: HotelRateOffer; selected: boolean; preferred: boolean; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void }) {
+  return <tr className={preferred ? "bg-info/10" : undefined}><td className="px-3 py-3 align-top"><p className="font-bold">{rate.roomType}</p>{preferred ? <span className="badge badge-info mt-1">Customer selected</span> : <p className="mt-1 text-xs text-muted">{rate.rateType}</p>}</td><td className="px-3 py-3 align-top"><p>{rate.mealPlan}</p><p className="mt-1 text-xs text-muted">{rate.occupancy}</p></td><td className="px-3 py-3 align-top"><p>{rate.unitBasis}</p><p className="mt-1 text-xs text-muted">Tax {rate.taxIncluded.toLowerCase()} | Commission {rate.commissionIncluded.toLowerCase()}</p></td><td className="max-w-64 px-3 py-3 align-top"><p className="line-clamp-2 text-xs">{cancellationSummary(rate.cancellationPolicy)}</p><p className="mt-1 line-clamp-2 text-xs text-muted">{rate.paymentTerms || "Payment terms not supplied"}</p></td><td className="tnum px-3 py-3 text-right align-top">{formatMoney(rate.netTotal, rate.currency)}</td><td className="tnum px-3 py-3 text-right align-top font-bold">{formatMoney(rate.clientTotal, rate.currency)}</td><td className="px-3 py-3 text-right align-top"><button className={selected ? "btn btn-ghost" : "btn btn-primary hover:btn-primary-hover"} onClick={() => onToggle(hotel, rate)} disabled={rate.requiresConfirmation}>{selected ? <><Check className="size-4" /> Selected</> : rate.requiresConfirmation ? "Confirm basis" : "Select"}</button></td></tr>;
 }
 
-function RoomCard({ hotel, rate, rooms, selected, onToggle }: { hotel: HotelMetadata; rate: HotelRateOffer; rooms: number; selected: boolean; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void }) {
-  return <div className="rounded-lg border border-line p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{rate.roomType}</p><p className="text-sm text-muted">{rate.mealPlan} | {rate.occupancy}</p></div><p className="tnum text-right font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p></div><dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><dt className="text-muted">Rate basis</dt><dd>{rate.unitBasis}</dd></div><div><dt className="text-muted">Supplier rate</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div><dt className="text-muted">Tax</dt><dd>{rate.taxIncluded}</dd></div><div><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack" : "Net"}</dd></div></dl><p className="mt-3 text-xs">{cancellationSummary(rate.cancellationPolicy)}</p><p className="mt-1 text-xs text-muted">{rate.paymentTerms || "Payment terms not supplied"}</p><button className={selected ? "btn btn-ghost mt-4 w-full" : "btn btn-primary hover:btn-primary-hover mt-4 w-full"} onClick={() => onToggle(hotel, rate)} disabled={rate.requiresConfirmation}>{selected ? <><Check className="size-4" /> Selected</> : rate.requiresConfirmation ? "Confirm rate basis" : `Select for ${rooms} room${rooms === 1 ? "" : "s"}`}</button></div>;
+function RoomCard({ hotel, rate, rooms, selected, preferred, onToggle }: { hotel: HotelMetadata; rate: HotelRateOffer; rooms: number; selected: boolean; preferred: boolean; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void }) {
+  return <div className={`rounded-lg border p-4 ${preferred ? "border-info bg-info/10" : "border-line"}`}><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{rate.roomType}</p>{preferred ? <span className="badge badge-info mt-1">Customer selected</span> : null}<p className="text-sm text-muted">{rate.mealPlan} | {rate.occupancy}</p></div><p className="tnum text-right font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p></div><dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><dt className="text-muted">Rate basis</dt><dd>{rate.unitBasis}</dd></div><div><dt className="text-muted">Supplier rate</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div><dt className="text-muted">Tax</dt><dd>{rate.taxIncluded}</dd></div><div><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack" : "Net"} + {HOTEL_MARKUP_PERCENT}%</dd></div></dl><p className="mt-3 text-xs">{cancellationSummary(rate.cancellationPolicy)}</p><p className="mt-1 text-xs text-muted">{rate.paymentTerms || "Payment terms not supplied"}</p><button className={selected ? "btn btn-ghost mt-4 w-full" : "btn btn-primary hover:btn-primary-hover mt-4 w-full"} onClick={() => onToggle(hotel, rate)} disabled={rate.requiresConfirmation}>{selected ? <><Check className="size-4" /> Selected</> : rate.requiresConfirmation ? "Confirm rate basis" : `Select for ${rooms} room${rooms === 1 ? "" : "s"}`}</button></div>;
 }
 
 function MetadataEditor({ hotel, source, onSaved }: { hotel: HotelMetadata; source: "live" | "demo"; onSaved: (hotel: HotelMetadata) => void }) {

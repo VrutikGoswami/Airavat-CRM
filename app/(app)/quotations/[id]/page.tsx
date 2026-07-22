@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
-import { CalendarCheck, Copy, FileDown, Mail, Send } from "lucide-react";
+import { CalendarCheck, FileDown, Mail, Send } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { EmptyState } from "@/components/ui/misc";
 import { QuotationStatusBadge } from "@/components/ui/chips";
@@ -12,13 +11,13 @@ import { optionTotals, depositAmount, optionBadges, OPTION_BADGE_LABELS } from "
 import { QUOTATION_ITEM_LABELS } from "@/lib/labels";
 import { money, formatDate, formatDateRange, travellersLabel } from "@/lib/format";
 import { QuotationDocument } from "@/components/quotation/QuotationDocument";
+import { quotationMessage } from "@/lib/quotation-message";
 
 export default function QuotationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const ws = useWorkspace();
   const q = ws.quotation(params.id);
-  const [copied, setCopied] = useState(false);
 
   if (!q) return <EmptyState title="Quotation not found" />;
 
@@ -41,22 +40,18 @@ export default function QuotationDetailPage() {
     (id) => ws.itemsForOption(id),
   );
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   const convert = () => {
     const id = ws.convertToBooking(q.id);
     if (id) router.push(`/bookings/${id}`);
   };
 
-  const waMessage = `Hello ${customer?.name.split(" ")[0] ?? ""}, here is your quotation ${q.ref} for ${q.destination}: ${shareUrl}`;
+  const deliveryMessage = quotationMessage({
+    quotation: q,
+    customer,
+    options,
+    itemsFor: (optionId) => ws.itemsForOption(optionId),
+    shareUrl,
+  });
 
   return (
     <>
@@ -91,7 +86,7 @@ export default function QuotationDetailPage() {
         {/* Status + delivery actions */}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
           {q.status === "draft" ? (
-            <button className="btn btn-primary hover:btn-primary-hover" onClick={() => ws.updateQuotationStatus(q.id, "sent")}><Send className="size-4" /> Mark as sent</button>
+            <button className="btn btn-primary hover:btn-primary-hover" onClick={() => ws.updateQuotationStatus(q.id, "sent")}><Send className="size-4" /> Mark as Sent</button>
           ) : null}
           {(q.status === "sent" || q.status === "viewed") ? (
             <>
@@ -106,9 +101,8 @@ export default function QuotationDetailPage() {
             <Link className="btn btn-ghost" href={`/bookings/${existingBooking.id}`}>View booking {existingBooking.ref}</Link>
           ) : null}
           <button className="btn btn-ghost" onClick={() => window.print()}><FileDown className="size-4" /> Generate PDF</button>
-          <button className="btn btn-ghost" onClick={copyLink}><Copy className="size-4" /> {copied ? "Copied!" : "Share link"}</button>
-          {customer ? <WhatsAppLink phone={customer.whatsapp} message={waMessage} label="Send by WhatsApp" /> : null}
-          {customer?.email ? <a className="btn btn-ghost" href={`mailto:${customer.email}?subject=${encodeURIComponent(`Your quotation ${q.ref}`)}&body=${encodeURIComponent(waMessage)}`}><Mail className="size-4" /> Email</a> : null}
+          {customer ? <WhatsAppLink phone={customer.whatsapp} message={deliveryMessage} label="Send by Whatsapp" /> : null}
+          {customer?.email ? <a className="btn btn-ghost" href={`mailto:${customer.email}?subject=${encodeURIComponent(`Your quotation ${q.ref}`)}&body=${encodeURIComponent(deliveryMessage)}`}><Mail className="size-4" /> Email</a> : null}
         </div>
       </div>
 

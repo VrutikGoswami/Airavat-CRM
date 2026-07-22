@@ -7,8 +7,23 @@ import {
   STAGE_TONE,
   WAITING_ON_LABELS,
   stageLabel,
+  SERVICE_LABELS,
 } from "@/lib/labels";
-import type { BookingStatus, PipelineStage, Priority, QuotationStatus, WaitingOn } from "@/lib/types";
+import type { BookingStatus, PipelineStage, Priority, QuotationStatus, ServiceType, WaitingOn } from "@/lib/types";
+
+const SERVICE_TONE: Record<ServiceType, string> = {
+  flights: "info",
+  hotel: "success",
+  safari: "warning",
+  "holiday-package": "warning",
+  transport: "neutral",
+  corporate: "neutral",
+  group: "neutral",
+};
+
+export function ServiceBadge({ service }: { service: ServiceType }) {
+  return <Badge tone={SERVICE_TONE[service]}>{SERVICE_LABELS[service]}</Badge>;
+}
 
 export function StageBadge({ stage }: { stage: PipelineStage }) {
   return <Badge tone={STAGE_TONE[stage]}>{stageLabel(stage)}</Badge>;

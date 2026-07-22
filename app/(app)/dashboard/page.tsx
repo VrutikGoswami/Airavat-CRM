@@ -11,10 +11,10 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { PageHeader, Section } from "@/components/ui/misc";
-import { StageBadge, PriorityDot } from "@/components/ui/chips";
+import { StageBadge, PriorityDot, ServiceBadge } from "@/components/ui/chips";
 import { Avatar } from "@/components/ui/Avatar";
 import { money, shortMoney, formatDateRange, formatTime, relativeTime, isOverdue, isToday, daysUntil, REFERENCE_TODAY } from "@/lib/format";
-import { SERVICE_LABELS, TASK_TYPE_LABELS } from "@/lib/labels";
+import { TASK_TYPE_LABELS } from "@/lib/labels";
 import { FINANCIAL_BASIS_LABEL } from "@/lib/booking";
 import { deadlineFromCancellation, daysBetween } from "@/lib/cancellation";
 import type { Task } from "@/lib/types";
@@ -210,7 +210,7 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-4 py-3 text-muted">{e.destination}</td>
                       <td className="px-4 py-3 text-muted">{formatDateRange(e.travelStartDate, e.travelEndDate)}</td>
-                      <td className="px-4 py-3 text-muted">{SERVICE_LABELS[e.service]}</td>
+                      <td className="px-4 py-3"><ServiceBadge service={e.service} /></td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5">
                           <Avatar initials={consultant?.initials ?? "?"} seed={consultant?.id} size={20} />

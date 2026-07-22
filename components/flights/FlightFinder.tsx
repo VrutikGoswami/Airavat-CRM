@@ -164,7 +164,7 @@ export function FlightFinder() {
             markupPct,
             sellingPrice: sellingFromMarkup(offer.agentCost, markupPct),
             taxPct: 0,
-            notes: `${sourceLabel(offer.source)} checked ${new Date(result?.searchedAt ?? Date.now()).toLocaleString("en-GB")}. ${offer.baggage}. Ticket by ${offer.lastTicketingDate ?? "airline deadline"}.`,
+            notes: `${sourceLabel(offer.source)} checked ${new Date(result?.searchedAt ?? Date.now()).toLocaleString("en-GB")}. Baggage: ${offer.baggage}. Meals: confirm with airline. Ticket by ${offer.lastTicketingDate ?? "airline deadline"}.`,
             cancellation: "Confirm change and refund rules before ticketing.",
           },
           ...(ticketingFee > 0 ? [{

@@ -8,13 +8,13 @@ import {
 } from "../lib/hotels";
 import { createDemoHotelSearch } from "../lib/hotels/demo";
 
-const search = { nights: 4, rooms: 2, adults: 3, children: 1, markupPercent: 15 };
+const search = { nights: 4, rooms: 2, adults: 3, children: 1, markupPercent: 2 };
 
 const expected: Array<[string, number]> = [
   ["Per Room Per Night", 80_000],
-  ["Per Person Per Night", 160_000],
-  ["Per Person Sharing Per Night", 160_000],
-  ["Per Person Per Stay", 40_000],
+  ["Per Person Per Night", 80_000],
+  ["Per Person Sharing Per Night", 80_000],
+  ["Per Person Per Stay", 20_000],
   ["Per Room Per Stay", 20_000],
   ["Package Total", 10_000],
   ["Flat Amount", 10_000],
@@ -23,7 +23,7 @@ const expected: Array<[string, number]> = [
 for (const [unitBasis, netTotal] of expected) {
   const result = calculateHotelRate({ amount: 10_000, unitBasis, ...search });
   assert.equal(result.netTotal, netTotal, unitBasis);
-  assert.equal(result.clientTotal, netTotal * 1.15, `${unitBasis} selling total`);
+  assert.equal(result.clientTotal, netTotal * 1.02, `${unitBasis} selling total`);
   assert.equal(result.requiresConfirmation, false, unitBasis);
 }
 

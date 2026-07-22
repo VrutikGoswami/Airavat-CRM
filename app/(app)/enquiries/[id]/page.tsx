@@ -303,17 +303,24 @@ export default function EnquiryPage() {
         {/* Actions */}
         {enquiry.status === "open" ? (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-            <Link className="btn btn-primary hover:btn-primary-hover" href={`/flights?enquiry=${enquiry.id}`}>
-              <Plane className="size-4" aria-hidden /> Find flights
-            </Link>
-            {["hotel", "holiday-package", "safari", "group", "corporate"].includes(enquiry.service) ? (
+            {enquiry.service === "hotel" ? (
+              <Link className="btn btn-primary hover:btn-primary-hover" href={`/hotels?enquiry=${enquiry.id}`}>
+                <BedDouble className="size-4" aria-hidden /> Check Hotel availability
+              </Link>
+            ) : null}
+            {enquiry.service !== "hotel" ? (
+              <Link className="btn btn-primary hover:btn-primary-hover" href={`/flights?enquiry=${enquiry.id}`}>
+                <Plane className="size-4" aria-hidden /> Find flights
+              </Link>
+            ) : null}
+            {enquiry.service !== "hotel" && ["holiday-package", "safari", "group", "corporate"].includes(enquiry.service) ? (
               <Link className="btn btn-primary hover:btn-primary-hover" href={`/hotels?enquiry=${enquiry.id}`}>
                 <BedDouble className="size-4" aria-hidden /> Find hotels
               </Link>
             ) : null}
-            <button className="btn btn-primary hover:btn-primary-hover" onClick={() => openCreate("quotation", enquiry.customerId)}>
+            <Link className="btn btn-primary hover:btn-primary-hover" href={`/quotations/new?enquiry=${enquiry.id}&customer=${enquiry.customerId}`}>
               <FileText className="size-4" aria-hidden /> Build quotation
-            </button>
+            </Link>
             <button className="btn btn-ghost" onClick={() => openCreate("task", enquiry.customerId)}>
               <CheckSquare className="size-4" aria-hidden /> Add task
             </button>
@@ -330,7 +337,7 @@ export default function EnquiryPage() {
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         {/* Left: details */}
         <div className="space-y-5">
-          <div className="card p-5">
+          <div className="card bg-info/5 p-5">
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">Enquiry details</h2>
             <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
               {facts.map((f) => (
@@ -341,7 +348,7 @@ export default function EnquiryPage() {
               ))}
             </dl>
             {enquiry.requirements ? (
-              <div className="mt-4 border-t border-line pt-3">
+              <div className="-mx-5 -mb-5 mt-4 border-t border-info/20 bg-info/15 px-5 pb-5 pt-4">
                 <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Requirements</dt>
                 <RequirementsDisplay requirements={enquiry.requirements} enquiryRef={enquiry.ref} />
               </div>

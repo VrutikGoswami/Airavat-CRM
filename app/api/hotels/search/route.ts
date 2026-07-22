@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  HOTEL_MARKUP_PERCENT,
   calculateHotelRate,
   cancellationIsFree,
   hotelNights,
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
         rooms: input.rooms,
         adults: input.adults,
         children: input.children,
-        markupPercent: document.pricing_basis === "rack" ? 0 : undefined,
+        markupPercent: HOTEL_MARKUP_PERCENT,
       });
       const offer: HotelRateOffer = {
         id: row.id,

@@ -6,7 +6,7 @@ import { useMemo, useState, type DragEvent } from "react";
 import { MessageSquare } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 import { PageHeader } from "@/components/ui/misc";
-import { WaitingOnPill } from "@/components/ui/chips";
+import { ServiceBadge, WaitingOnPill } from "@/components/ui/chips";
 import { Avatar } from "@/components/ui/Avatar";
 import { PIPELINE_STAGES, SERVICE_LABELS, LOST_REASON_LABELS } from "@/lib/labels";
 import { shortMoney, formatDateRange, travellersTotal, isOverdue } from "@/lib/format";
@@ -204,6 +204,7 @@ function PipelineCard({
         ) : null}
       </div>
       <p className="mt-0.5 text-xs text-muted">{enquiry.destination}</p>
+      <div className="mt-1.5"><ServiceBadge service={enquiry.service} /></div>
       <p className="mt-1 text-xs text-muted">{formatDateRange(enquiry.travelStartDate, enquiry.travelEndDate)}</p>
       <div className="mt-2 flex items-center justify-between">
         <span className="tnum text-xs font-semibold">{shortMoney(ws.enquiryValueKes(enquiry.id))}</span>

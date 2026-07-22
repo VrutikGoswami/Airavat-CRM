@@ -85,7 +85,7 @@ export function QuotationBuilder() {
   const addItem = () => {
     setItems((prev) => [
       ...prev,
-      { key: nextKey(), optionLabel: primaryLabel, type: "hotel", supplier: "", description: "", startDate: "", endDate: "", quantity: 1, costPrice: 0, markupPct: 15, sellingPrice: 0, taxPct: 0, notes: "", cancellation: "" },
+      { key: nextKey(), optionLabel: primaryLabel, type: "hotel", supplier: "", description: "", startDate: "", endDate: "", quantity: 1, costPrice: 0, markupPct: 2, sellingPrice: 0, taxPct: 0, notes: "", cancellation: "" },
     ]);
   };
 

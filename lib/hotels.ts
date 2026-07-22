@@ -1,4 +1,4 @@
-export const HOTEL_MARKUP_PERCENT = 15;
+export const HOTEL_MARKUP_PERCENT = 2;
 
 export type HotelSearchInput = {
   destination: string;
@@ -106,8 +106,8 @@ export function calculateHotelRate({
   unitBasis,
   nights,
   rooms,
-  adults,
-  children,
+  adults: _adults,
+  children: _children,
   markupPercent = HOTEL_MARKUP_PERCENT,
 }: {
   amount: number;
@@ -119,19 +119,20 @@ export function calculateHotelRate({
   markupPercent?: number;
 }): Pick<HotelRateOffer, "netTotal" | "clientTotal" | "calculationNote" | "requiresConfirmation"> {
   const basis = normalizeBasis(unitBasis);
-  const guests = adults + children;
   let multiplier: number | null = null;
   let calculationNote = "";
+  void _adults;
+  void _children;
 
   if (basis === "per room per night") {
     multiplier = rooms * nights;
     calculationNote = `${rooms} room${rooms === 1 ? "" : "s"} x ${nights} night${nights === 1 ? "" : "s"}`;
   } else if (basis === "per person per night" || basis === "per person sharing per night") {
-    multiplier = guests * nights;
-    calculationNote = `${guests} traveller${guests === 1 ? "" : "s"} x ${nights} night${nights === 1 ? "" : "s"}`;
+    multiplier = rooms * nights;
+    calculationNote = `${rooms} room${rooms === 1 ? "" : "s"} x ${nights} night${nights === 1 ? "" : "s"}; occupancy rate applied once per room`;
   } else if (basis === "per person per stay") {
-    multiplier = guests;
-    calculationNote = `${guests} traveller${guests === 1 ? "" : "s"} per stay`;
+    multiplier = rooms;
+    calculationNote = `${rooms} room${rooms === 1 ? "" : "s"} per stay; occupancy rate applied once per room`;
   } else if (basis === "per room per stay") {
     multiplier = rooms;
     calculationNote = `${rooms} room${rooms === 1 ? "" : "s"} per stay`;

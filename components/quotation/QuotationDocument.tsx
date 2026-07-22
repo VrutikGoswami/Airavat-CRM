@@ -95,6 +95,8 @@ export function QuotationDocument({
                 <thead>
                   <tr className="border-b border-neutral-300 text-left">
                     <th className="px-3 py-1.5 font-semibold">Service</th>
+                    <th className="px-3 py-1.5 font-semibold">Destination</th>
+                    <th className="px-3 py-1.5 font-semibold">Dates</th>
                     <th className="px-3 py-1.5 font-semibold">Details</th>
                     <th className="px-3 py-1.5 text-right font-semibold">Amount</th>
                   </tr>
@@ -103,10 +105,15 @@ export function QuotationDocument({
                   {items.map((i) => (
                     <tr key={i.id} className="border-b border-neutral-200 align-top">
                       <td className="px-3 py-1.5 font-medium">{QUOTATION_ITEM_LABELS[i.type]}</td>
+                      <td className="px-3 py-1.5 text-neutral-700">{q.destination}</td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-neutral-700">
+                        {formatDateRange(i.startDate || q.travelStartDate, i.endDate || q.travelEndDate)}
+                      </td>
                       <td className="px-3 py-1.5 text-neutral-700">
                         {i.supplier ? `${i.supplier} — ` : ""}
                         {i.description}
                         {i.quantity > 1 ? ` ×${i.quantity}` : ""}
+                        {i.notes ? <span className="mt-0.5 block text-[10px]">{i.notes}</span> : null}
                       </td>
                       <td className="px-3 py-1.5 text-right tabular-nums">
                         {money(i.sellingPrice * i.quantity, q.currency)}
@@ -115,7 +122,7 @@ export function QuotationDocument({
                   ))}
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-3 py-1.5 text-neutral-500">
+                      <td colSpan={5} className="px-3 py-1.5 text-neutral-500">
                         No services listed.
                       </td>
                     </tr>
@@ -124,16 +131,16 @@ export function QuotationDocument({
                 <tfoot>
                   {t.tax > 0 ? (
                     <tr>
-                      <td colSpan={2} className="px-3 py-1 text-right text-neutral-600">Tax</td>
+                      <td colSpan={4} className="px-3 py-1 text-right text-neutral-600">Tax</td>
                       <td className="px-3 py-1 text-right tabular-nums">{money(t.tax, q.currency)}</td>
                     </tr>
                   ) : null}
                   <tr className="border-t border-neutral-400">
-                    <td colSpan={2} className="px-3 py-1.5 text-right font-bold">Total</td>
+                    <td colSpan={4} className="px-3 py-1.5 text-right font-bold">Total</td>
                     <td className="px-3 py-1.5 text-right font-bold tabular-nums">{money(t.total, q.currency)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={2} className="px-3 py-1 text-right text-neutral-600">
+                    <td colSpan={4} className="px-3 py-1 text-right text-neutral-600">
                       Deposit to confirm ({q.depositPct}%)
                     </td>
                     <td className="px-3 py-1 text-right tabular-nums">
