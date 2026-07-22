@@ -9,6 +9,7 @@ import {
   FileText,
   Filter,
   ImageIcon,
+  Images,
   Minus,
   Pencil,
   Plus,
@@ -71,12 +72,12 @@ function cancellationSummary(value: string | null): string {
   return value?.trim() || "Cancellation terms not supplied";
 }
 
-function resultBestRate(result: HotelSearchResult): HotelRateOffer {
+function resultBestRate(result: HotelSearchResult): HotelRateOffer | null {
   return [...result.rates].sort((a, b) => {
     if (a.clientTotal === null) return 1;
     if (b.clientTotal === null) return -1;
     return a.clientTotal - b.clientTotal;
-  })[0];
+  })[0] ?? null;
 }
 
 function imageStyle(url?: string): React.CSSProperties | undefined {
@@ -248,18 +249,20 @@ export function HotelFinder() {
         if (maxBudget && (rate.clientTotal === null || rate.clientTotal > maxBudget)) return false;
         return true;
       });
-      if (!matchingRates.length) return false;
+      const hasRateFilters = filterMeal !== "Any" || freeCancellation || Boolean(maxBudget);
+      if (item.rates.length > 0 && !matchingRates.length) return false;
+      if (item.rates.length === 0 && hasRateFilters) return false;
       if (filterStars.length && (!item.hotel.starRating || !filterStars.includes(item.hotel.starRating))) return false;
       return selectedAmenities.every((amenity) => item.hotel.amenities.includes(amenity));
     });
     return [...filtered].sort((a, b) => {
       const aRate = resultBestRate(a);
       const bRate = resultBestRate(b);
-      if (sort === "lowest") return (aRate.clientTotal ?? Number.MAX_SAFE_INTEGER) - (bRate.clientTotal ?? Number.MAX_SAFE_INTEGER);
+      if (sort === "lowest") return (aRate?.clientTotal ?? Number.MAX_SAFE_INTEGER) - (bRate?.clientTotal ?? Number.MAX_SAFE_INTEGER);
       if (sort === "stars") return (b.hotel.starRating ?? 0) - (a.hotel.starRating ?? 0);
-      const aScore = (a.hotel.starRating ?? 0) + (aRate.freeCancellation ? 2 : 0) + (a.hotel.imageUrls.length ? 1 : 0);
-      const bScore = (b.hotel.starRating ?? 0) + (bRate.freeCancellation ? 2 : 0) + (b.hotel.imageUrls.length ? 1 : 0);
-      return bScore - aScore || (aRate.clientTotal ?? Number.MAX_SAFE_INTEGER) - (bRate.clientTotal ?? Number.MAX_SAFE_INTEGER);
+      const aScore = (a.hotel.starRating ?? 0) + (aRate?.freeCancellation ? 2 : 0) + (a.hotel.imageUrls.length ? 1 : 0);
+      const bScore = (b.hotel.starRating ?? 0) + (bRate?.freeCancellation ? 2 : 0) + (b.hotel.imageUrls.length ? 1 : 0);
+      return bScore - aScore || (aRate?.clientTotal ?? Number.MAX_SAFE_INTEGER) - (bRate?.clientTotal ?? Number.MAX_SAFE_INTEGER);
     });
   }, [filterBudget, filterMeal, filterStars, freeCancellation, result, selectedAmenities, sort]);
 
@@ -415,21 +418,31 @@ export function HotelFinder() {
             </div>
             {visibleResults.map((item) => {
               const rate = resultBestRate(item);
-              const margin = rate.clientTotal !== null && rate.netTotal !== null ? rate.clientTotal - rate.netTotal : null;
+              const margin = rate?.clientTotal !== null && rate?.clientTotal !== undefined && rate.netTotal !== null
+                ? rate.clientTotal - rate.netTotal
+                : null;
               return (
                 <article key={item.hotel.id} className="overflow-hidden rounded-lg border border-line bg-surface">
                   <div className="grid sm:grid-cols-[190px_minmax(0,1fr)] 2xl:grid-cols-[190px_minmax(0,1fr)_190px]">
                     <HotelImage hotel={item.hotel} className="aspect-[16/9] min-h-40 sm:aspect-auto sm:h-full" />
                     <div className="min-w-0 p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-2"><div><Stars count={item.hotel.starRating} /><h3 className="mt-1 text-lg font-bold">{item.hotel.name}</h3><p className="text-sm font-semibold text-terracotta">{item.hotel.area || item.hotel.city || item.hotel.destinationName}</p></div><span className="badge badge-info">{item.rates.length} rate{item.rates.length === 1 ? "" : "s"}</span></div>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <Stars count={item.hotel.starRating} />
+                          <button type="button" className="mt-1 flex items-center gap-1.5 text-left text-lg font-bold hover:text-terracotta" onClick={() => setOpenHotelId(item.hotel.id)}>
+                            {item.hotel.name}<Images className="size-4 text-terracotta" aria-hidden />
+                          </button>
+                          <p className="text-sm font-semibold text-terracotta">{item.hotel.area || item.hotel.city || item.hotel.destinationName}</p>
+                        </div>
+                        <span className="badge badge-info">{rate ? `${item.rates.length} rate${item.rates.length === 1 ? "" : "s"}` : "Rate on request"}</span>
+                      </div>
                       <p className="mt-2 line-clamp-2 text-sm text-muted">{item.hotel.shortDescription || "Property details have not been added yet."}</p>
                       <div className="mt-3 flex flex-wrap gap-1.5">{item.hotel.amenities.slice(0, 4).map((amenity) => <span key={amenity} className="rounded bg-surface-2 px-2 py-1 text-xs font-medium">{amenity}</span>)}{!item.hotel.amenities.length ? <span className="text-xs text-muted">Amenities not supplied</span> : null}</div>
-                      <div className="mt-4 border-t border-line pt-3 text-sm"><p className="font-bold">{rate.roomType} <span className="font-normal text-muted">| {rate.mealPlan}</span></p><p className={rate.freeCancellation ? "mt-1 text-xs font-semibold text-success" : "mt-1 text-xs text-muted"}>{cancellationSummary(rate.cancellationPolicy)}</p></div>
+                      {rate ? <div className="mt-4 border-t border-line pt-3 text-sm"><p className="font-bold">{rate.roomType} <span className="font-normal text-muted">| {rate.mealPlan}</span></p><p className={rate.freeCancellation ? "mt-1 text-xs font-semibold text-success" : "mt-1 text-xs text-muted"}>{cancellationSummary(rate.cancellationPolicy)}</p></div> : <p className="mt-4 border-t border-line pt-3 text-sm text-muted">Open the hotel to review its photographs. Supplier pricing still needs to be loaded.</p>}
                     </div>
                     <div className="flex flex-col justify-between border-t border-line p-4 text-right sm:col-span-2 2xl:col-span-1 2xl:border-l 2xl:border-t-0">
-                      <div><p className="text-xs text-muted">Total for {result.nights} nights</p><p className="tnum mt-1 text-xl font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p><p className="mt-1 text-xs text-muted">{rate.calculationNote}</p></div>
-                      <dl className="my-3 space-y-1 text-xs"><div className="flex justify-between"><dt className="text-muted">Supplier total</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div className="flex justify-between"><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack" : "Net"} + {HOTEL_MARKUP_PERCENT}%</dd></div><div className="flex justify-between"><dt className="text-muted">Margin</dt><dd className="tnum">{formatMoney(margin, rate.currency)}</dd></div></dl>
-                      <button className="btn btn-primary hover:btn-primary-hover w-full" onClick={() => setOpenHotelId(item.hotel.id)}>View rooms <ChevronRight className="size-4" /></button>
+                      {rate ? <><div><p className="text-xs text-muted">Total for {result.nights} nights</p><p className="tnum mt-1 text-xl font-bold">{formatMoney(rate.clientTotal, rate.currency)}</p><p className="mt-1 text-xs text-muted">{rate.calculationNote}</p></div><dl className="my-3 space-y-1 text-xs"><div className="flex justify-between"><dt className="text-muted">Supplier total</dt><dd className="tnum">{formatMoney(rate.netTotal, rate.currency)}</dd></div><div className="flex justify-between"><dt className="text-muted">Pricing</dt><dd>{rate.pricingBasis === "rack" ? "Rack" : "Net"} + {HOTEL_MARKUP_PERCENT}%</dd></div><div className="flex justify-between"><dt className="text-muted">Margin</dt><dd className="tnum">{formatMoney(margin, rate.currency)}</dd></div></dl></> : <div className="my-4"><p className="font-bold">Rate on request</p><p className="mt-1 text-xs text-muted">No approved supplier rate is loaded.</p></div>}
+                      <button className="btn btn-primary hover:btn-primary-hover w-full" onClick={() => setOpenHotelId(item.hotel.id)}>{rate ? "View rooms" : "View photos"} <ChevronRight className="size-4" /></button>
                     </div>
                   </div>
                 </article>
@@ -444,8 +457,6 @@ export function HotelFinder() {
         <div className="flex min-h-60 flex-col items-center justify-center border-y border-line bg-surface px-6 text-center"><Building2 className="mb-3 size-9 text-muted" aria-hidden /><p className="font-semibold">Find a rate, compare rooms, create the quote</p><p className="mt-1 max-w-md text-sm text-muted">Search approved supplier contracts by destination and stay details. Availability is confirmed with the supplier after selection.</p></div>
       ) : <div className="space-y-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-48 animate-pulse rounded-lg border border-line bg-surface" />)}</div>}
 
-      {result?.mediaOnly.length ? <HotelMediaCatalog hotels={result.mediaOnly} /> : null}
-
       {selected.length ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface p-3 shadow-[0_-6px_20px_rgba(29,42,34,0.12)] xl:hidden"><div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><button className="min-w-0 text-left" onClick={() => setSelectionReviewOpen(true)}><p className="truncate font-bold">{selected.length} option{selected.length === 1 ? "" : "s"}</p><p className="text-xs font-semibold text-terracotta">Review rooms</p></button><button className="btn btn-primary hover:btn-primary-hover shrink-0" onClick={createQuotation} disabled={creating}><FileText className="size-4" />{creating ? "Creating..." : "Create draft"}</button></div></div> : null}
 
       <HotelDetails openResult={openResult} source={result?.source ?? "live"} selected={selected} rooms={rooms} customerSelectedRateId={customerSelectedRateId} onClose={() => setOpenHotelId(null)} onToggle={toggleRate} onUpdateHotel={updateHotel} />
@@ -456,32 +467,6 @@ export function HotelFinder() {
   );
 }
 
-function HotelMediaCatalog({ hotels }: { hotels: HotelMetadata[] }) {
-  return (
-    <section className="border-t border-line pt-5">
-      <div className="mb-4">
-        <h2 className="font-bold">Property galleries</h2>
-        <p className="mt-1 text-sm text-muted">Approved property images are available even when contracted rates still need to be added.</p>
-      </div>
-      <div className="space-y-5">
-        {hotels.map((hotel) => (
-          <article key={hotel.id} className="rounded-lg border border-line bg-surface p-4">
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <div><h3 className="font-bold">{hotel.name}</h3><p className="text-sm text-muted">{hotel.destinationName}</p></div>
-              <span className="badge badge-info">{hotel.imageUrls.length} image{hotel.imageUrls.length === 1 ? "" : "s"}</span>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {hotel.imageUrls.map((url, index) => (
-                <HotelImage key={url} hotel={hotel} url={url} className={`aspect-[16/9] rounded-lg ${index === 0 ? "sm:col-span-2" : ""}`} />
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function SelectionSummary({ selected, selectedTotals, updateRooms, remove, createQuotation, creating, className }: { selected: SelectedRate[]; selectedTotals: (item: SelectedRate) => ReturnType<typeof calculateHotelRate>; updateRooms: (id: string, rooms: number) => void; remove: (id: string) => void; createQuotation: () => void; creating: boolean; className?: string }) {
   return <aside className={className}><div className="rounded-lg border border-line bg-surface p-4"><h2 className="font-bold">Quotation options</h2><p className="mt-1 text-xs text-muted">Select up to three room rates.</p>{selected.length ? <div className="mt-4 space-y-4">{selected.map((item, index) => { const totals = selectedTotals(item); return <div key={item.rate.id} className="border-t border-line pt-3"><div className="flex items-start justify-between gap-2"><div><span className="badge badge-info">Option {String.fromCharCode(65 + index)}</span><p className="mt-1 text-sm font-bold">{item.hotel.name}</p><p className="text-xs text-muted">{item.rate.roomType}</p></div><button className="row-hover rounded-md p-1 text-muted" onClick={() => remove(item.rate.id)} aria-label={`Remove ${item.hotel.name}`}><X className="size-4" /></button></div><div className="mt-3 flex items-center justify-between"><span className="text-xs text-muted">Rooms</span><div className="flex h-8 items-center rounded-md border border-line"><button className="h-full px-2" onClick={() => updateRooms(item.rate.id, item.rooms - 1)} aria-label="Decrease rooms"><Minus className="size-3" /></button><span className="tnum w-7 text-center text-sm font-semibold">{item.rooms}</span><button className="h-full px-2" onClick={() => updateRooms(item.rate.id, item.rooms + 1)} aria-label="Increase rooms"><Plus className="size-3" /></button></div></div><p className="tnum mt-2 text-right text-sm font-bold">{formatMoney(totals.clientTotal, item.rate.currency)}</p></div>; })}<button className="btn btn-primary hover:btn-primary-hover w-full" onClick={createQuotation} disabled={creating}><FileText className="size-4" />{creating ? "Creating..." : "Create draft quotation"}</button></div> : <div className="mt-4 rounded-lg bg-surface-2 px-3 py-6 text-center text-sm text-muted">Choose a room rate to begin.</div>}</div></aside>;
 }
@@ -489,6 +474,27 @@ function SelectionSummary({ selected, selectedTotals, updateRooms, remove, creat
 function HotelDetails({ openResult, source, selected, rooms, customerSelectedRateId, onClose, onToggle, onUpdateHotel }: { openResult: HotelSearchResult | null; source: "live" | "demo"; selected: SelectedRate[]; rooms: number; customerSelectedRateId: string | null; onClose: () => void; onToggle: (hotel: HotelMetadata, rate: HotelRateOffer) => void; onUpdateHotel: (hotel: HotelMetadata) => void }) {
   const [editing, setEditing] = useState(false);
   if (!openResult) return null;
+  if (!openResult.rates.length) {
+    return (
+      <Modal open title={openResult.hotel.name} onClose={() => { setEditing(false); onClose(); }} size="xl">
+        <div className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {openResult.hotel.imageUrls.length ? openResult.hotel.imageUrls.map((url, index) => <HotelImage key={url} hotel={openResult.hotel} url={url} className={`aspect-[16/9] bg-contain bg-no-repeat rounded-lg ${index === 0 ? "sm:col-span-2" : ""}`} />) : <div className="flex min-h-40 items-center justify-center rounded-lg bg-surface-2 text-muted sm:col-span-2"><ImageIcon className="size-7" /></div>}
+          </div>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Stars count={openResult.hotel.starRating} />
+              <p className="mt-1 text-sm font-semibold text-terracotta">{openResult.hotel.area || openResult.hotel.city || openResult.hotel.destinationName}</p>
+              <p className="mt-2 max-w-3xl text-sm text-muted">{openResult.hotel.shortDescription || "Property details have not been added yet."}</p>
+            </div>
+            <button className="btn btn-ghost" onClick={() => setEditing(!editing)}><Pencil className="size-4" /> Edit details</button>
+          </div>
+          {editing ? <MetadataEditor hotel={openResult.hotel} source={source} onSaved={(hotel) => { onUpdateHotel(hotel); setEditing(false); }} /> : null}
+          <p className="border-l-2 border-warning bg-warning/5 px-3 py-3 text-sm text-warning">No approved supplier rate is loaded for this property. Add a supplier rate before selecting it for a quotation.</p>
+        </div>
+      </Modal>
+    );
+  }
   return <Modal open title={openResult.hotel.name} onClose={() => { setEditing(false); onClose(); }} size="xl"><div className="space-y-5"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{openResult.hotel.imageUrls.length ? openResult.hotel.imageUrls.map((url, index) => <HotelImage key={url} hotel={openResult.hotel} url={url} className={`aspect-[16/9] rounded-lg ${index === 0 ? "sm:col-span-2" : ""}`} />) : <div className="flex min-h-40 items-center justify-center rounded-lg bg-surface-2 text-muted sm:col-span-2"><ImageIcon className="size-7" /></div>}</div><div className="flex flex-wrap items-start justify-between gap-4"><div><Stars count={openResult.hotel.starRating} /><p className="mt-1 text-sm font-semibold text-terracotta">{openResult.hotel.area || openResult.hotel.city || openResult.hotel.destinationName}</p><p className="mt-2 max-w-3xl text-sm text-muted">{openResult.hotel.shortDescription || "Add a short property summary for staff."}</p><div className="mt-3 flex flex-wrap gap-1.5">{openResult.hotel.amenities.map((amenity) => <span key={amenity} className="rounded bg-surface-2 px-2 py-1 text-xs font-medium">{amenity}</span>)}</div></div><button className="btn btn-ghost" onClick={() => setEditing(!editing)}><Pencil className="size-4" /> Edit details</button></div>{editing ? <MetadataEditor hotel={openResult.hotel} source={source} onSaved={(hotel) => { onUpdateHotel(hotel); setEditing(false); }} /> : null}<div><h3 className="mb-3 font-bold">Matching rooms</h3><div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[980px] text-left text-sm"><thead className="border-y border-line bg-surface-2 text-xs uppercase text-muted"><tr><th className="px-3 py-2">Room</th><th className="px-3 py-2">Meal / occupancy</th><th className="px-3 py-2">Basis</th><th className="px-3 py-2">Terms</th><th className="px-3 py-2 text-right">Net rate</th><th className="px-3 py-2 text-right">Client total</th><th className="px-3 py-2" /></tr></thead><tbody className="divide-y divide-line">{openResult.rates.map((rate) => <RoomRow key={rate.id} hotel={openResult.hotel} rate={rate} selected={selected.some((item) => item.rate.id === rate.id)} preferred={rate.id === customerSelectedRateId} onToggle={onToggle} />)}</tbody></table></div><div className="space-y-3 lg:hidden">{openResult.rates.map((rate) => <RoomCard key={rate.id} hotel={openResult.hotel} rate={rate} rooms={rooms} selected={selected.some((item) => item.rate.id === rate.id)} preferred={rate.id === customerSelectedRateId} onToggle={onToggle} />)}</div></div><p className="border-l-2 border-warning bg-warning/5 px-3 py-2 text-xs text-warning">Rate matched; confirm availability. Supplier inventory is not live or guaranteed.</p></div></Modal>;
 }
 

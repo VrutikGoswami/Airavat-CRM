@@ -207,18 +207,17 @@ export async function POST(request: Request) {
       }
     }
 
+    for (const hotel of (mediaData ?? []) as JoinedHotel[]) {
+      if (grouped.has(hotel.id)) continue;
+      if (!(hotel.image_urls?.length ?? 0) || !destinationMatches(hotel, input.destination)) continue;
+      grouped.set(hotel.id, { hotel: hotelMetadata(hotel), rates: [] });
+    }
+
     return Response.json({
       source: "live",
-      notice: "Rate matched; confirm availability.",
+      notice: "Approved rates are shown where available; other properties are marked rate on request.",
       nights,
       results: [...grouped.values()],
-      mediaOnly: ((mediaData ?? []) as JoinedHotel[])
-        .filter((hotel) =>
-          !grouped.has(hotel.id)
-          && (hotel.image_urls?.length ?? 0) > 0
-          && destinationMatches(hotel, input.destination),
-        )
-        .map(hotelMetadata),
     });
   } catch (error) {
     const databaseError = error as { code?: string; message?: string };
