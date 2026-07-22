@@ -1,6 +1,7 @@
 import { optionTotals, depositAmount, optionBadges, OPTION_BADGE_LABELS } from "@/lib/quotation";
 import { QUOTATION_ITEM_LABELS } from "@/lib/labels";
 import { money, formatDate, formatDateRange, travellersLabel } from "@/lib/format";
+import { company, companyContactLine } from "@/lib/company";
 import type { Customer, Quotation, QuotationItem, QuotationOption, User } from "@/lib/types";
 
 /**
@@ -31,10 +32,12 @@ export function QuotationDocument({
       {/* Letterhead */}
       <div className="flex items-start justify-between border-b-2 border-black pb-4">
         <div>
-          <p className="text-xl font-bold tracking-tight">Airavat Tours &amp; Travels</p>
+          <p className="text-xl font-bold tracking-tight">{company.name}</p>
           <p className="mt-0.5 text-[11px] uppercase tracking-widest text-neutral-600">
-            Flights · Hotels · Holidays
+            {company.tagline}
           </p>
+          <p className="mt-1.5 text-[10px] text-neutral-600">{companyContactLine()}</p>
+          <p className="text-[10px] text-neutral-600">{company.address}</p>
         </div>
         <div className="text-right text-xs">
           <p className="text-base font-bold">QUOTATION</p>
@@ -165,6 +168,9 @@ export function QuotationDocument({
         {consultant?.email ? ` · ${consultant.email}` : ""}. This quotation presents options and does
         not confirm supplier availability or issue tickets until booked and paid. Fares and rates are
         rechecked before payment.
+      </p>
+      <p className="mt-1 text-[10px] text-neutral-500">
+        {company.legalName} · {company.city}
       </p>
     </div>
   );

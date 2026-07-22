@@ -4,6 +4,7 @@ import { useWorkspace } from "@/lib/workspace";
 import { PageHeader } from "@/components/ui/misc";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
+import { company } from "@/lib/company";
 
 /**
  * Settings shows company details, quotation defaults and staff access.
@@ -27,13 +28,18 @@ export default function SettingsPage() {
       <section className="card p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">Company</h2>
         <dl className="grid gap-4 sm:grid-cols-2">
-          <Row label="Business name" value="Airavat Tours & Travels" />
-          <Row label="Base city" value="Nairobi, Kenya" />
-          <Row label="Default currency" value="KES" />
-          <Row label="WhatsApp business number" value="[WHATSAPP_PHONE_NUMBER_ID — set in .env]" mono />
-          <Row label="Support email" value="[SUPPORT EMAIL — placeholder]" mono />
-          <Row label="Registration / licence" value="[COMPANY REGISTRATION — placeholder]" mono />
+          <Row label="Business name" value={company.name} />
+          <Row label="Registered name" value={company.legalName} />
+          <Row label="Base city" value={company.city} />
+          <Row label="Default currency" value={company.currency} />
+          <Row label="Phone / WhatsApp" value={company.phone} mono />
+          <Row label="Support email" value={company.email} mono />
+          <Row label="Website" value={company.website} mono />
+          <Row label="Address" value={company.address} />
         </dl>
+        <p className="mt-3 text-xs text-muted">
+          These match the public website. Update them in <code className="rounded bg-surface-2 px-1 py-0.5">lib/company.ts</code> (and the website&apos;s <code className="rounded bg-surface-2 px-1 py-0.5">config/company.ts</code>) to keep both in sync.
+        </p>
       </section>
 
       <section className="card p-5">

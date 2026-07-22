@@ -5,6 +5,7 @@ import { fetchShareQuotation } from "@/lib/db";
 import { optionTotals, depositAmount, optionBadges, OPTION_BADGE_LABELS } from "@/lib/quotation";
 import { QUOTATION_ITEM_LABELS } from "@/lib/labels";
 import { money, formatDate, formatDateRange, travellersLabel } from "@/lib/format";
+import { company, companyContactLine } from "@/lib/company";
 import type { Customer, Quotation, QuotationItem, QuotationOption, User } from "@/lib/types";
 
 /**
@@ -67,10 +68,13 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-8 flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
           <Compass className="size-6 text-terracotta" aria-hidden />
-          <span className="text-lg font-bold">Airavat Tours &amp; Travels</span>
+          <div>
+            <span className="block text-lg font-bold leading-tight">{company.name}</span>
+            <span className="block text-[11px] text-muted">{company.tagline}</span>
+          </div>
         </div>
         <span className="text-xs text-muted">Quotation {q.ref}</span>
       </header>
@@ -138,6 +142,12 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           confirm supplier availability or issue tickets until booked and paid.
         </p>
       </section>
+
+      <footer className="mt-6 border-t border-line pt-4 text-center text-xs text-muted">
+        <p className="font-semibold text-ink">{company.name}</p>
+        <p className="mt-0.5">{companyContactLine()}</p>
+        <p>{company.address}</p>
+      </footer>
     </main>
   );
 }
