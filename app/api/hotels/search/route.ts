@@ -9,6 +9,7 @@ import {
   occupancyFits,
   stayHitsBlackout,
   type HotelRateOffer,
+  type HotelMetadata,
   type HotelSearchInput,
   type HotelSearchResult,
 } from "@/lib/hotels";
@@ -96,6 +97,23 @@ function destinationMatches(hotel: JoinedHotel, destination: string): boolean {
   return haystack.includes(requested) || tokens.every((token) => haystack.includes(token));
 }
 
+function hotelMetadata(hotel: JoinedHotel): HotelMetadata {
+  return {
+    id: hotel.id,
+    name: hotel.name,
+    destinationName: hotel.destination_name,
+    city: hotel.city,
+    country: hotel.country,
+    starRating: hotel.star_rating,
+    area: hotel.area,
+    shortDescription: hotel.short_description,
+    imageUrls: hotel.image_urls ?? [],
+    amenities: hotel.amenities ?? [],
+    hotelGroup: hotel.hotel_group,
+    websiteUrl: hotel.website_url,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const parsed = searchSchema.safeParse(await request.json());
@@ -124,6 +142,11 @@ export async function POST(request: Request) {
       .gte("valid_to", lastStayDate(input.checkIn, input.checkOut))
       .limit(1500);
     if (error) throw error;
+    const { data: mediaData, error: mediaError } = await supabase
+      .from("rate_hotels")
+      .select("id,name,destination_name,city,country,star_rating,area,short_description,image_urls,amenities,hotel_group,website_url")
+      .eq("active", true);
+    if (mediaError) throw mediaError;
 
     const grouped = new Map<string, HotelSearchResult>();
     for (const row of (data ?? []) as unknown as JoinedRate[]) {
@@ -178,20 +201,7 @@ export async function POST(request: Request) {
         existing.rates.push(offer);
       } else {
         grouped.set(hotel.id, {
-          hotel: {
-            id: hotel.id,
-            name: hotel.name,
-            destinationName: hotel.destination_name,
-            city: hotel.city,
-            country: hotel.country,
-            starRating: hotel.star_rating,
-            area: hotel.area,
-            shortDescription: hotel.short_description,
-            imageUrls: hotel.image_urls ?? [],
-            amenities: hotel.amenities ?? [],
-            hotelGroup: hotel.hotel_group,
-            websiteUrl: hotel.website_url,
-          },
+          hotel: hotelMetadata(hotel),
           rates: [offer],
         });
       }
@@ -202,6 +212,13 @@ export async function POST(request: Request) {
       notice: "Rate matched; confirm availability.",
       nights,
       results: [...grouped.values()],
+      mediaOnly: ((mediaData ?? []) as JoinedHotel[])
+        .filter((hotel) =>
+          !grouped.has(hotel.id)
+          && (hotel.image_urls?.length ?? 0) > 0
+          && destinationMatches(hotel, input.destination),
+        )
+        .map(hotelMetadata),
     });
   } catch (error) {
     const databaseError = error as { code?: string; message?: string };

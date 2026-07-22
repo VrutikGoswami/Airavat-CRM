@@ -212,5 +212,6 @@ export function createDemoHotelSearch(input: HotelSearchInput): HotelSearchRespo
       },
       rates: ratesFor(template),
     })).filter((result) => result.rates.length > 0),
+    mediaOnly: [],
   };
 }

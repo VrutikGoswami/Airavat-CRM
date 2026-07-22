@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:rates": "tsx scripts/test-rate-pipeline.ts",
-    "test:hotels": "tsx scripts/test-hotel-pricing.ts"
+    "test:hotels": "tsx scripts/test-hotel-pricing.ts",
+    "sync:hotel-pictures": "tsx scripts/sync-hotel-pictures.ts --apply"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",

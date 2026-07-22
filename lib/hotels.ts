@@ -67,6 +67,7 @@ export type HotelSearchResponse = {
   notice: string;
   nights: number;
   results: HotelSearchResult[];
+  mediaOnly: HotelMetadata[];
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
