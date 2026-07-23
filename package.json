@@ -10,11 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test:rates": "tsx scripts/test-rate-pipeline.ts",
     "test:hotels": "tsx scripts/test-hotel-pricing.ts",
+    "test:aios-mcp": "tsx scripts/test-airavat-aios-mcp.ts",
+    "aios:mcp": "tsx scripts/airavat-aios-mcp.ts",
     "sync:hotel-pictures": "tsx scripts/sync-hotel-pictures.ts --apply",
     "sync:official-hotel-media": "tsx scripts/sync-official-hotel-media.ts --apply"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.50.0",
     "lucide-react": "^0.525.0",
