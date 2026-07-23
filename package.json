@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:rates": "tsx scripts/test-rate-pipeline.ts",
     "test:hotels": "tsx scripts/test-hotel-pricing.ts",
-    "sync:hotel-pictures": "tsx scripts/sync-hotel-pictures.ts --apply"
+    "sync:hotel-pictures": "tsx scripts/sync-hotel-pictures.ts --apply",
+    "sync:official-hotel-media": "tsx scripts/sync-official-hotel-media.ts --apply"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
